@@ -29,14 +29,17 @@
                     </select>
                 </div>
                 
-                <div class="filter-group">
-                    <label for="sortSelect">Sort:</label>
-                    <select id="sortSelect">
-                        <option value="folder">Folder</option>
-                        <option value="date">Date</option>
-                        <option value="name">Name</option>
-                    </select>
-                </div>
+                <button class="sort-btn" id="sortFolderBtn" title="Sort by folder" data-sort="folder">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                    </svg>
+                </button>
+                
+                <button class="sort-btn" id="sortDateBtn" title="Sort by date" data-sort="date">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                    </svg>
+                </button>
                 
                 <button class="shuffle-btn" id="shuffleBtn" title="Shuffle videos">
                     <svg viewBox="0 0 24 24">

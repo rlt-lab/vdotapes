@@ -1,10 +1,16 @@
 class VdoTapesApp {
     constructor() {
+        // Constants
+        this.MAIN_PROCESS_READY_DELAY = 500;
+        this.SETTINGS_LOAD_DELAY = 1000;
+        this.PREVIEW_LOOP_DURATION = 5; // seconds
+        this.LOAD_TIMEOUT = 10000; // 10 seconds
+        
         this.allVideos = [];
         this.displayedVideos = [];
         this.folders = [];
         this.currentFolder = '';
-        this.currentSort = 'folder';
+        this.currentSort = 'folder'; // 'folder' or 'date'
         this.gridCols = this.getDefaultGridCols();
         this.isLoading = false;
         this.observer = null;
@@ -27,7 +33,7 @@ class VdoTapesApp {
     
     async init() {
         // Wait for main process to be ready
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, this.MAIN_PROCESS_READY_DELAY));
         
         this.setupEventListeners();
         this.setupIntersectionObserver();
@@ -45,7 +51,7 @@ class VdoTapesApp {
     async loadSettings() {
         try {
             // Wait a bit more for the main process to be fully ready
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, this.SETTINGS_LOAD_DELAY));
             
             // Load user preferences
             const preferences = await window.electronAPI.getUserPreferences();
@@ -57,8 +63,8 @@ class VdoTapesApp {
                 
                 // Update UI to reflect loaded settings
                 document.getElementById('gridCols').value = this.gridCols;
-                document.getElementById('sortSelect').value = this.currentSort;
                 document.getElementById('folderSelect').value = this.currentFolder;
+                this.updateSortButtonStates();
                 
                 if (this.showingFavoritesOnly) {
                     document.getElementById('favoritesBtn').classList.add('active');
@@ -80,7 +86,6 @@ class VdoTapesApp {
             // Load last folder and scan if it exists
             try {
                 const lastFolder = await window.electronAPI.getLastFolder();
-                console.log('Last folder loaded:', lastFolder);
                 if (lastFolder) {
                     this.showLoading('Loading previous folder...');
                     await this.scanVideos(lastFolder);
@@ -123,9 +128,13 @@ class VdoTapesApp {
             this.filterByFolder(e.target.value);
         });
         
-        document.getElementById('sortSelect').addEventListener('change', (e) => {
-            this.currentSort = e.target.value;
-            this.applySorting();
+        // Sort buttons
+        document.getElementById('sortFolderBtn').addEventListener('click', () => {
+            this.setSortMode('folder');
+        });
+        
+        document.getElementById('sortDateBtn').addEventListener('click', () => {
+            this.setSortMode('date');
         });
         
         document.getElementById('shuffleBtn').addEventListener('click', () => {
@@ -233,17 +242,16 @@ class VdoTapesApp {
                 this.allVideos = result.videos;
                 this.folders = result.folders;
                 this.populateFolderDropdown();
-                this.applySorting();
+                this.applyCurrentFilters();
                 this.hideProgress();
                 this.showFilterControls();
                 this.updateStatusMessage();
                 
                 // Load videos from database with favorite status
                 try {
-                    const dbVideos = await window.electronAPI.getVideos({});
+                    const dbVideos = await window.electronAPI.getVideos({ sortBy: 'none' });
                     if (dbVideos && dbVideos.length > 0) {
                         this.allVideos = dbVideos;
-                        console.log('Loaded', dbVideos.length, 'videos from database');
                     }
                     
                     // Sync local favorites with database
@@ -251,7 +259,6 @@ class VdoTapesApp {
                     if (favorites && Array.isArray(favorites)) {
                         this.favorites = new Set(favorites);
                         this.updateFavoritesCount();
-                        console.log('Loaded', favorites.length, 'favorites from database');
                     }
                 } catch (error) {
                     console.error('Error loading videos from database:', error);
@@ -261,7 +268,6 @@ class VdoTapesApp {
                 // Save the folder path for next time and other settings
                 try {
                     await window.electronAPI.saveLastFolder(folderPath);
-                    console.log('Saved last folder:', folderPath);
                     this.saveSettings();
                 } catch (error) {
                     console.error('Error saving settings:', error);
@@ -296,37 +302,53 @@ class VdoTapesApp {
         this.saveSettings();
     }
     
-    applySorting() {
-        const sortFunctions = {
-            folder: (a, b) => {
-                const folderA = a.folder || '';
-                const folderB = b.folder || '';
-                return folderA.localeCompare(folderB) || a.lastModified - b.lastModified;
-            },
-            date: (a, b) => b.lastModified - a.lastModified,
-            name: (a, b) => a.name.localeCompare(b.name)
-        };
+    setSortMode(sortMode) {
+        this.currentSort = sortMode;
+        this.updateSortButtonStates();
         
-        const sortFn = sortFunctions[this.currentSort];
-        if (sortFn) {
-            this.allVideos.sort(sortFn);
-            this.applyCurrentFilters();
-            this.updateStatusMessage();
-            this.saveSettings();
+        // Debug: Log some date info when switching to date sort
+        if (sortMode === 'date' && this.allVideos.length > 0) {
+            console.log('=== DATE SORT DEBUG ===');
+            console.log('Total videos:', this.allVideos.length);
+            console.log('First 5 videos with dates:');
+            this.allVideos.slice(0, 5).forEach((video, index) => {
+                const timestamp = video.lastModified;
+                const date = new Date(timestamp);
+                console.log(`${index + 1}. ${video.name}`);
+                console.log(`   - Raw timestamp: ${timestamp}`);
+                console.log(`   - Date object: ${date}`);
+                console.log(`   - Is valid: ${!isNaN(date.getTime())}`);
+                console.log(`   - Folder: ${video.folder || 'root'}`);
+            });
+            console.log('========================');
         }
+        
+        this.applyCurrentFilters();
+        this.updateStatusMessage();
+        this.saveSettings();
     }
     
+    updateSortButtonStates() {
+        document.getElementById('sortFolderBtn').classList.toggle('active', this.currentSort === 'folder');
+        document.getElementById('sortDateBtn').classList.toggle('active', this.currentSort === 'date');
+    }
+
     async shuffleVideos() {
         const btn = document.getElementById('shuffleBtn');
         btn.classList.add('shuffling');
         
-        // Fisher-Yates shuffle on all videos
-        for (let i = this.allVideos.length - 1; i > 0; i--) {
+        // Create a copy of the current displayed videos to shuffle
+        let videosToShuffle = [...this.displayedVideos];
+        
+        // Fisher-Yates shuffle on the displayed videos
+        for (let i = videosToShuffle.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [this.allVideos[i], this.allVideos[j]] = [this.allVideos[j], this.allVideos[i]];
+            [videosToShuffle[i], videosToShuffle[j]] = [videosToShuffle[j], videosToShuffle[i]];
         }
         
-        this.applyCurrentFilters();
+        // Update displayed videos with shuffled order
+        this.displayedVideos = videosToShuffle;
+        this.renderGrid();
         this.updateStatusMessage();
         
         setTimeout(() => btn.classList.remove('shuffling'), 500);
@@ -345,7 +367,7 @@ class VdoTapesApp {
             this.currentSort = this.previousViewState.sort;
             
             document.getElementById('folderSelect').value = this.currentFolder;
-            document.getElementById('sortSelect').value = this.currentSort;
+            this.updateSortButtonStates();
         }
         
         const btn = document.getElementById('favoritesBtn');
@@ -359,40 +381,58 @@ class VdoTapesApp {
     applyCurrentFilters() {
         let filtered = [...this.allVideos];
         
-        // Apply folder filter first
+        // Apply folder filter (works for both sort modes)
         if (this.currentFolder) {
-            filtered = filtered.filter(video => {
-                const videoFolder = video.folder;
-                return videoFolder === this.currentFolder;
-            });
+            filtered = filtered.filter(video => video.folder === this.currentFolder);
         }
         
-        // Apply favorites filter - use the isFavorite property from database
+        // Apply favorites filter
         if (this.showingFavoritesOnly) {
             filtered = filtered.filter(video => video.isFavorite === true);
         }
         
+        // Apply sorting
+        if (this.currentSort === 'folder') {
+            // Sort by folder (ABC order), then by date (newest first) within each folder
+            filtered.sort((a, b) => {
+                const folderA = a.folder || '';
+                const folderB = b.folder || '';
+                const folderCompare = folderA.localeCompare(folderB);
+                if (folderCompare !== 0) return folderCompare;
+                
+                // Within same folder, sort by date using timestamps directly
+                const dateA = a.lastModified || 0;
+                const dateB = b.lastModified || 0;
+                
+                // Sort newest first (higher timestamp first)
+                return dateB - dateA;
+            });
+        } else if (this.currentSort === 'date') {
+            // Sort by date only (newest first), ignoring folders completely
+            console.log('Sorting by date - before sort, first 3 videos:');
+            filtered.slice(0, 3).forEach((video, index) => {
+                console.log(`${index + 1}. ${video.name} - timestamp: ${video.lastModified} - folder: ${video.folder || 'root'}`);
+            });
+            
+            filtered.sort((a, b) => {
+                const dateA = a.lastModified || 0;
+                const dateB = b.lastModified || 0;
+                
+                // Sort newest first (higher timestamp first)
+                return dateB - dateA;
+            });
+            
+            console.log('After sort, first 3 videos:');
+            filtered.slice(0, 3).forEach((video, index) => {
+                console.log(`${index + 1}. ${video.name} - timestamp: ${video.lastModified} - folder: ${video.folder || 'root'}`);
+            });
+        }
+        
         this.displayedVideos = filtered;
-        this.applySortingToDisplayed();
         this.renderGrid();
     }
     
-    applySortingToDisplayed() {
-        const sortFunctions = {
-            folder: (a, b) => {
-                const folderA = a.folder || '';
-                const folderB = b.folder || '';
-                return folderA.localeCompare(folderB) || a.lastModified - b.lastModified;
-            },
-            date: (a, b) => b.lastModified - a.lastModified,
-            name: (a, b) => a.name.localeCompare(b.name)
-        };
-        
-        const sortFn = sortFunctions[this.currentSort];
-        if (sortFn) {
-            this.displayedVideos.sort(sortFn);
-        }
-    }
+
     
     renderGrid() {
         if (this.displayedVideos.length === 0) {
@@ -507,13 +547,13 @@ class VdoTapesApp {
             videoElement.addEventListener('loadedmetadata', handleLoad, { once: true });
             videoElement.addEventListener('error', handleError, { once: true });
             
-            // Timeout protection (10 seconds)
+            // Timeout protection
             setTimeout(() => {
                 if (container.classList.contains('loading')) {
                     console.warn('Video load timeout:', src);
                     handleError({ type: 'timeout' });
                 }
-            }, 10000);
+            }, this.LOAD_TIMEOUT);
             
         } catch (error) {
             container.classList.remove('loading');
@@ -561,8 +601,9 @@ class VdoTapesApp {
             }
             
             const midpoint = duration / 2;
-            const start = Math.max(0, midpoint - 2.5);
-            const end = Math.min(duration, midpoint + 2.5);
+            const halfDuration = this.PREVIEW_LOOP_DURATION / 2;
+            const start = Math.max(0, midpoint - halfDuration);
+            const end = Math.min(duration, midpoint + halfDuration);
             
             if (video._loopHandler) {
                 video.removeEventListener('timeupdate', video._loopHandler);
@@ -694,7 +735,6 @@ class VdoTapesApp {
                     this.updateStatusMessage();
                 }
                 
-                console.log('Favorite toggled for video:', videoId, 'New status:', video.isFavorite);
             } else {
                 console.error('Failed to save favorite for video:', videoId);
             }
@@ -728,8 +768,6 @@ class VdoTapesApp {
                 if (this.displayedVideos.length > 0) {
                     this.applyCurrentFilters();
                 }
-                
-                console.log('Refreshed favorites from database:', favorites.length, 'favorites');
             }
         } catch (error) {
             console.error('Error refreshing favorites:', error);

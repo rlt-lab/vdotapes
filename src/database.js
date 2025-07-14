@@ -299,11 +299,14 @@ class VideoDatabase {
       
       let orderBy = '';
       switch (sortField) {
+        case 'none':
+          // No sorting - return in natural order
+          break;
         case 'name':
           orderBy = 'v.name';
           break;
         case 'date':
-          orderBy = 'v.last_modified';
+          orderBy = 'v.last_modified DESC'; // Always newest first for date sort
           break;
         case 'size':
           orderBy = 'v.size';
@@ -313,11 +316,13 @@ class VideoDatabase {
           break;
         case 'folder':
         default:
-          orderBy = 'v.folder, v.name';
+          orderBy = 'v.folder, v.last_modified DESC'; // Folder alphabetical, then newest first within each folder
           break;
       }
       
-      query += ` ORDER BY ${orderBy} ${sortOrder}`;
+      if (orderBy) {
+        query += ` ORDER BY ${orderBy}`;
+      }
 
       // Apply pagination
       if (filters.limit) {
@@ -333,8 +338,24 @@ class VideoDatabase {
       const stmt = this.db.prepare(query);
       const videos = stmt.all(...params);
 
+      // Debug: Log first few videos and their dates
+      if (videos.length > 0) {
+        console.log('=== DATABASE DEBUG ===');
+        console.log('Query:', query);
+        console.log('Params:', params);
+        console.log('First 3 videos from database:');
+        videos.slice(0, 3).forEach((video, index) => {
+          console.log(`${index + 1}. ${video.name}`);
+          console.log(`   - Raw last_modified: ${video.last_modified}`);
+          console.log(`   - Type: ${typeof video.last_modified}`);
+          console.log(`   - Folder: ${video.folder || 'root'}`);
+        });
+        console.log('=====================');
+      }
+
       return videos.map(video => ({
         ...video,
+        lastModified: video.last_modified, // Map snake_case to camelCase
         isFavorite: Boolean(video.is_favorite),
         rating: video.rating || null
       }));
@@ -369,6 +390,7 @@ class VideoDatabase {
       if (video) {
         return {
           ...video,
+          lastModified: video.last_modified, // Map snake_case to camelCase
           isFavorite: Boolean(video.is_favorite),
           rating: video.rating || null
         };

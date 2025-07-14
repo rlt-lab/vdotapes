@@ -1,12 +1,14 @@
 const fs = require('fs').promises;
 const path = require('path');
-const { createReadStream } = require('fs');
 
 class VideoScanner {
   constructor() {
+    // Constants
     this.VIDEO_EXTENSIONS = new Set([
       '.mp4', '.webm', '.ogg', '.mov', '.avi', '.wmv', '.flv', '.mkv', '.m4v'
     ]);
+    this.EXCLUDED_DIRECTORIES = new Set(['.', 'node_modules']);
+    this.SYSTEM_FILE_PREFIX = '._';
     
     this.isScanning = false;
     this.scanProgress = 0;
@@ -19,7 +21,7 @@ class VideoScanner {
    * Check if a file is a valid video file
    */
   isValidVideoFile(filename) {
-    if (filename.startsWith('._')) return false;
+    if (filename.startsWith(this.SYSTEM_FILE_PREFIX)) return false;
     const ext = path.extname(filename).toLowerCase();
     return this.VIDEO_EXTENSIONS.has(ext);
   }
@@ -79,7 +81,7 @@ class VideoScanner {
         
         if (entry.isDirectory()) {
           // Skip hidden directories and system directories
-          if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          if (!entry.name.startsWith('.') && !this.EXCLUDED_DIRECTORIES.has(entry.name)) {
             const subVideos = await this.scanDirectory(fullPath, currentRelativePath);
             videos.push(...subVideos);
           }
@@ -135,7 +137,7 @@ class VideoScanner {
     if (!relativePath || !relativePath.includes(path.sep)) return null;
     
     const parts = relativePath.split(path.sep).filter(part => 
-      part && part !== '.' && !part.startsWith('._')
+      part && part !== '.' && !part.startsWith(this.SYSTEM_FILE_PREFIX)
     );
     
     // Remove the filename (last part) to get folder parts
@@ -169,7 +171,7 @@ class VideoScanner {
         const fullPath = path.join(dirPath, entry.name);
         
         if (entry.isDirectory()) {
-          if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          if (!entry.name.startsWith('.') && !this.EXCLUDED_DIRECTORIES.has(entry.name)) {
             count += await this.countFiles(fullPath);
           }
         } else if (entry.isFile()) {
@@ -203,15 +205,7 @@ class VideoScanner {
       // Scan for videos
       this.videos = await this.scanDirectory(folderPath);
       
-      // Sort videos by folder, then by name
-      this.videos.sort((a, b) => {
-        const folderA = a.folder || '';
-        const folderB = b.folder || '';
-        const folderCompare = folderA.localeCompare(folderB);
-        
-        if (folderCompare !== 0) return folderCompare;
-        return a.name.localeCompare(b.name);
-      });
+      // Don't pre-sort here - let the renderer handle all sorting
 
       return {
         success: true,

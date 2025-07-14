@@ -140,6 +140,40 @@ body {
     text-align: center;
 }
 
+.sort-btn {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 0.5rem;
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    width: 40px;
+    height: 40px;
+}
+
+.sort-btn:hover {
+    background: #444;
+    border-color: #667eea;
+    color: #fff;
+    transform: scale(1.05);
+}
+
+.sort-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+}
+
+.sort-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
 .shuffle-btn {
     background: #333;
     border: 1px solid #555;
