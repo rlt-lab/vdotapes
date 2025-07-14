@@ -126,7 +126,6 @@ After building, you'll find the following in the `dist/` folder:
 - `VDOTapes 1.0.0.exe` - Portable executable (no install required)
 - `VDOTapes Setup 1.0.0.exe` - Traditional installer
 - `win-unpacked/` - Unpacked application folder
-
 ### Project Structure
 ```
 vdotapes/
@@ -221,12 +220,18 @@ npm run dev
 
 ## 📋 Roadmap
 
+<<<<<<< HEAD
 ### Immediate Goals
 - [ ] **GitHub Releases** - Automated builds and releases for easy downloads
 - [ ] **Thumbnail Generation** - Automatic video thumbnails
 - [ ] **Drag & Drop** - Folder selection via drag and drop
 
 ### Planned Features
+=======
+### Planned Features
+- [ ] **Thumbnail Generation** - Automatic video thumbnails
+- [ ] **Drag & Drop** - Folder selection via drag and drop
+>>>>>>> 3a63325edbad25fcb5c20cb3528df2e4f037a482
 - [ ] **Keyboard Shortcuts** - Navigation and control shortcuts
 - [ ] **Context Menus** - Right-click actions for videos
 - [ ] **Search Functionality** - Search across video names and folders
@@ -260,4 +265,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+<<<<<<< HEAD
 **VDOTapes** - Making video browsing beautiful and efficient since 2024 🎬✨ 
+=======
+**VDOTapes** - Making video browsing beautiful and efficient since 2024 🎬✨
+>>>>>>> 3a63325edbad25fcb5c20cb3528df2e4f037a482
