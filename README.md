@@ -4,8 +4,6 @@
 
 VDOTapes is a beautiful, cross-platform desktop application for browsing and organizing your video collections. Built with Electron, it provides a responsive grid layout with automatic video previews, smart filtering, and persistent favorites.
 
-![VDOTapes App Icon](app/assets/icon.png)
-
 ## ✨ Features
 
 ### 🎯 Core Functionality
