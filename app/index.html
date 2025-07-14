@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VdoTapes - High Performance Video Viewer</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self';">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <div class="controls">
+            <div class="brand-title">VdoTapes</div>
+            <button class="folder-btn" id="folderBtn">📁 Select Video Folder</button>
+            <div class="status" id="status">No folder selected</div>
+            
+            <div class="filter-controls" id="filterControls">
+                <button class="favorites-btn" id="favoritesBtn" title="Show favorites only">
+                    <svg viewBox="0 0 24 24" class="heart-icon">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                    <span class="favorites-count" id="favoritesCount">0</span>
+                </button>
+                
+                <div class="filter-group">
+                    <label for="folderSelect">Folder:</label>
+                    <select id="folderSelect">
+                        <option value="">All folders</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="sortSelect">Sort:</label>
+                    <select id="sortSelect">
+                        <option value="folder">Folder</option>
+                        <option value="date">Date</option>
+                        <option value="name">Name</option>
+                    </select>
+                </div>
+                
+                <button class="shuffle-btn" id="shuffleBtn" title="Shuffle videos">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zM14.83 13.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+                    </svg>
+                </button>
+                
+                <div class="grid-size-control">
+                    <label>Grid:</label>
+                    <input type="number" id="gridCols" value="4" min="1" max="12">
+                    <span>cols</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div id="content">
+            <div class="empty-state">
+                <h2>Welcome to VdoTapes</h2>
+                <p>High-performance video viewer with Instagram-style browsing.<br>
+                Select a folder containing your videos to get started.</p>
+                <div style="margin-top: 2rem; color: #777; font-size: 0.85rem;">
+                    📱 Responsive grid layout with customizable columns<br>
+                    🎬 Formats: MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, M4V<br>
+                    ⚡ Videos preview automatically in grid view<br>
+                    📁 Filter by subfolder and sort your collection<br>
+                    🔀 Shuffle mode for random browsing<br>
+                    💾 Persistent favorites and settings
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="expanded-overlay" id="expandedOverlay">
+        <button class="close-btn" id="closeBtn">×</button>
+        <video class="expanded-video" id="expandedVideo" controls loop></video>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
