@@ -16,6 +16,11 @@ class VdoTapesApp {
         this.observer = null;
         this.favorites = new Set();
         this.showingFavoritesOnly = false;
+        this.hiddenFiles = new Set();
+        this.showingHiddenFiles = false;
+        this.showingHiddenOnly = false;
+        this.multiViewQueue = [];
+        this.isMultiViewActive = false;
         this.previousViewState = { folder: '', sort: 'folder' };
         this.currentExpandedIndex = -1; // Track which video is currently expanded
         
@@ -59,6 +64,7 @@ class VdoTapesApp {
                 this.gridCols = preferences.gridColumns || this.gridCols;
                 this.currentSort = preferences.sortPreference?.sortBy || 'folder';
                 this.showingFavoritesOnly = preferences.favoritesOnly || false;
+                this.showingHiddenOnly = preferences.hiddenOnly || false;
                 this.currentFolder = preferences.folderFilter || '';
                 
                 // Update UI to reflect loaded settings
@@ -68,6 +74,10 @@ class VdoTapesApp {
                 
                 if (this.showingFavoritesOnly) {
                     document.getElementById('favoritesBtn').classList.add('active');
+                }
+                
+                if (this.showingHiddenOnly) {
+                    document.getElementById('hiddenBtn').classList.add('active');
                 }
             }
 
@@ -81,6 +91,18 @@ class VdoTapesApp {
             } catch (error) {
                 console.error('Error loading favorites:', error);
                 this.favorites = new Set();
+            }
+
+            // Load hidden files from database
+            try {
+                const hiddenFiles = await window.electronAPI.getHiddenFiles();
+                if (hiddenFiles && Array.isArray(hiddenFiles)) {
+                    this.hiddenFiles = new Set(hiddenFiles);
+                    this.updateHiddenCount();
+                }
+            } catch (error) {
+                console.error('Error loading hidden files:', error);
+                this.hiddenFiles = new Set();
             }
 
             // Load last folder and scan if it exists
@@ -108,7 +130,8 @@ class VdoTapesApp {
                     sortOrder: 'ASC'
                 },
                 folderFilter: this.currentFolder,
-                favoritesOnly: this.showingFavoritesOnly
+                favoritesOnly: this.showingFavoritesOnly,
+                hiddenOnly: this.showingHiddenOnly
             };
             
             await window.electronAPI.saveUserPreferences(preferences);
@@ -146,6 +169,16 @@ class VdoTapesApp {
             this.toggleFavoritesView();
         });
         
+        // Multi-view toggle
+        document.getElementById('multiViewBtn').addEventListener('click', () => {
+            this.toggleMultiView();
+        });
+        
+        // Hidden files toggle
+        document.getElementById('hiddenBtn').addEventListener('click', () => {
+            this.toggleHiddenView();
+        });
+        
         // Grid size
         document.getElementById('gridCols').addEventListener('input', () => {
             this.updateGridSize();
@@ -156,13 +189,45 @@ class VdoTapesApp {
             this.closeExpanded();
         });
         
+        // Click to play/pause expanded video
+        document.getElementById('expandedVideo').addEventListener('click', (e) => {
+            // Prevent click from bubbling to overlay
+            e.stopPropagation();
+            const video = e.currentTarget;
+            if (video.paused) {
+                video.play().catch(() => {});
+            } else {
+                video.pause();
+            }
+        });
+        
+        // Multi-view close
+        document.getElementById('multiViewCloseBtn').addEventListener('click', () => {
+            this.closeMultiView();
+        });
+        
         document.getElementById('expandedOverlay').addEventListener('click', (e) => {
-            if (e.target === e.currentTarget) this.closeExpanded();
+            // Close if clicking the overlay itself (black space) but not the video
+            if (e.target === e.currentTarget) {
+                this.closeExpanded();
+            }
+        });
+        
+        document.getElementById('multiViewOverlay').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) this.closeMultiView();
         });
         
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeExpanded();
+                this.closeMultiView();
+            } else if (e.key === ' ') {
+                // Spacebar to close expanded view
+                const overlay = document.getElementById('expandedOverlay');
+                if (overlay.classList.contains('active')) {
+                    e.preventDefault();
+                    this.closeExpanded();
+                }
             } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
                 // Only handle arrow keys when expanded view is active
                 const overlay = document.getElementById('expandedOverlay');
@@ -190,6 +255,9 @@ class VdoTapesApp {
                 }
             }
         });
+        
+        // Context menu handling
+        this.setupContextMenu();
     }
     
     setupIntersectionObserver() {
@@ -391,6 +459,15 @@ class VdoTapesApp {
             filtered = filtered.filter(video => video.isFavorite === true);
         }
         
+        // Apply hidden files filter
+        if (this.showingHiddenOnly) {
+            // Show ONLY hidden videos
+            filtered = filtered.filter(video => this.hiddenFiles.has(video.id));
+        } else {
+            // Hide videos that are in the hidden files set (normal mode)
+            filtered = filtered.filter(video => !this.hiddenFiles.has(video.id));
+        }
+        
         // Apply sorting
         if (this.currentSort === 'folder') {
             // Sort by folder (ABC order), then by date (newest first) within each folder
@@ -462,16 +539,20 @@ class VdoTapesApp {
     }
     
     createVideoItemHTML(video, index) {
+        // Debug: Log video object to see what's in folder property
+        console.log('Creating video item for:', video.name, 'Folder:', video.folder);
+        
         // Use the isFavorite property from the database result
         const isFavorited = video.isFavorite === true;
         return `
-            <div class="video-item" data-index="${index}" data-video-id="${video.id}">
+            <div class="video-item" data-index="${index}" data-video-id="${video.id}" title="${video.folder || 'Root folder'}">
                 <video 
                     data-src="${video.path}"
                     data-duration=""
                     muted 
                     loop
                     preload="none"
+                    title="${video.folder || 'Root folder'}"
                 ></video>
                 <button class="video-favorite ${isFavorited ? 'favorited' : ''}" data-video-id="${video.id}">
                     <svg viewBox="0 0 24 24" class="heart-icon">
@@ -479,8 +560,8 @@ class VdoTapesApp {
                     </svg>
                 </button>
                 <div class="video-overlay">
-                    <div class="video-name" title="${video.name}">
-                        ${video.name}
+                    <div class="video-name" title="${video.folder || 'Root folder'}">
+                        ${video.folder || 'Root folder'}
                     </div>
                     <div class="video-info">
                         <span>${this.formatFileSize(video.size)}</span>
@@ -532,9 +613,26 @@ class VdoTapesApp {
             videoElement.src = src;
             videoElement.preload = 'metadata';
             
+            // Ensure the video element shows subfolder name, not filename
+            const videoIndex = Array.from(container.parentElement.children).indexOf(container);
+            const video = this.displayedVideos[videoIndex];
+            if (video) {
+                videoElement.title = video.folder || 'Root folder';
+                container.title = video.folder || 'Root folder';
+            }
+            
             const handleLoad = () => {
                 container.classList.remove('loading');
                 videoElement.classList.add('loaded');
+                
+                // Set title after video loads to override any browser default
+                const videoIndex = Array.from(container.parentElement.children).indexOf(container);
+                const video = this.displayedVideos[videoIndex];
+                if (video) {
+                    videoElement.title = video.folder || 'Root folder';
+                    container.title = video.folder || 'Root folder';
+                }
+                
                 this.startVideoPlayback(videoElement);
             };
             
@@ -873,6 +971,266 @@ class VdoTapesApp {
         statusText += ` (${this.formatFileSize(totalSize)})`;
         
         this.showStatus(statusText);
+    }
+    
+    setupContextMenu() {
+        let contextMenu = document.getElementById('contextMenu');
+        let currentVideo = null;
+        
+        // Event delegation for right-click on video items
+        document.addEventListener('contextmenu', (e) => {
+            const videoItem = e.target.closest('.video-item');
+            if (videoItem) {
+                e.preventDefault();
+                
+                // Get video data
+                const videoIndex = Array.from(videoItem.parentElement.children).indexOf(videoItem);
+                currentVideo = this.displayedVideos[videoIndex];
+                
+                if (currentVideo) {
+                    // Update favorite text based on current state
+                    const favoriteText = contextMenu.querySelector('.favorite-text');
+                    const isFavorited = this.favorites.has(currentVideo.id);
+                    favoriteText.textContent = isFavorited ? 'Remove from Favorites' : 'Add to Favorites';
+                    
+                    // Update hidden text based on current state
+                    const hiddenText = contextMenu.querySelector('.hidden-text');
+                    const isHidden = this.hiddenFiles.has(currentVideo.id);
+                    hiddenText.textContent = isHidden ? 'Show' : 'Hide';
+                    
+                    // Position and show context menu
+                    this.showContextMenu(e.clientX, e.clientY);
+                }
+            }
+        });
+        
+        // Handle context menu item clicks
+        contextMenu.addEventListener('click', async (e) => {
+            const action = e.target.closest('.context-menu-item')?.dataset.action;
+            
+            if (action && currentVideo) {
+                switch (action) {
+                    case 'open-location':
+                        await this.openFileLocation(currentVideo.path);
+                        break;
+                    case 'toggle-favorite':
+                        await this.toggleFavorite(currentVideo.id, e);
+                        break;
+                    case 'add-to-multi-view':
+                        this.addToMultiView(currentVideo);
+                        break;
+                    case 'toggle-hidden':
+                        await this.toggleHiddenFile(currentVideo.id, e);
+                        break;
+                }
+            }
+            
+            this.hideContextMenu();
+        });
+        
+        // Hide context menu on click outside
+        document.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target)) {
+                this.hideContextMenu();
+            }
+        });
+        
+        // Hide context menu on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideContextMenu();
+            }
+        });
+    }
+    
+    showContextMenu(x, y) {
+        const contextMenu = document.getElementById('contextMenu');
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const menuWidth = 200;
+        const menuHeight = 160;
+        
+        // Position menu within viewport
+        let menuX = x;
+        let menuY = y;
+        
+        if (x + menuWidth > viewportWidth) {
+            menuX = x - menuWidth;
+        }
+        
+        if (y + menuHeight > viewportHeight) {
+            menuY = y - menuHeight;
+        }
+        
+        contextMenu.style.left = menuX + 'px';
+        contextMenu.style.top = menuY + 'px';
+        contextMenu.classList.add('show');
+    }
+    
+    hideContextMenu() {
+        const contextMenu = document.getElementById('contextMenu');
+        contextMenu.classList.remove('show');
+    }
+    
+    async openFileLocation(filePath) {
+        try {
+            const success = await window.electronAPI.showItemInFolder(filePath);
+            if (!success) {
+                console.error('Failed to open file location');
+            }
+        } catch (error) {
+            console.error('Error opening file location:', error);
+        }
+    }
+    
+    addToMultiView(video) {
+        // Remove video if already in queue
+        this.multiViewQueue = this.multiViewQueue.filter(v => v.id !== video.id);
+        
+        // Add to end of queue
+        this.multiViewQueue.push(video);
+        
+        // Keep max 3 items (FIFO)
+        if (this.multiViewQueue.length > 3) {
+            this.multiViewQueue.shift();
+        }
+        
+        console.log('Added to multi-view:', video.name);
+        console.log('Multi-view queue:', this.multiViewQueue.map(v => v.name));
+        
+        // Update the multi-view count
+        this.updateMultiViewCount();
+    }
+    
+    updateMultiViewCount() {
+        const countElement = document.getElementById('multiViewCount');
+        if (countElement) {
+            countElement.textContent = this.multiViewQueue.length;
+        }
+    }
+    
+    toggleMultiView() {
+        if (this.multiViewQueue.length === 0) {
+            this.showStatus('No videos in multi-view queue');
+            return;
+        }
+        
+        this.showMultiView();
+    }
+    
+    showMultiView() {
+        const overlay = document.getElementById('multiViewOverlay');
+        const container = document.getElementById('multiViewContainer');
+        
+        // Clear existing content
+        container.innerHTML = '';
+        
+        // Add class based on number of videos
+        container.className = 'multi-view-container';
+        if (this.multiViewQueue.length === 1) {
+            container.classList.add('single');
+        } else if (this.multiViewQueue.length === 2) {
+            container.classList.add('dual');
+        }
+        
+        // Create video elements for each video in the queue
+        this.multiViewQueue.forEach((video, index) => {
+            const videoElement = document.createElement('video');
+            videoElement.className = 'multi-view-video';
+            videoElement.src = video.path;
+            videoElement.controls = true;
+            videoElement.loop = true;
+            videoElement.muted = false;
+            
+            container.appendChild(videoElement);
+            
+            // Auto-play all videos
+            videoElement.play().catch(() => {});
+        });
+        
+        // Show the overlay
+        overlay.classList.add('active');
+    }
+    
+    closeMultiView() {
+        const overlay = document.getElementById('multiViewOverlay');
+        const container = document.getElementById('multiViewContainer');
+        
+        // Pause all videos
+        const videos = container.querySelectorAll('video');
+        videos.forEach(video => {
+            video.pause();
+            video.src = '';
+        });
+        
+        // Hide overlay
+        overlay.classList.remove('active');
+        
+        // Clear container
+        container.innerHTML = '';
+    }
+    
+    toggleHiddenView() {
+        this.showingHiddenOnly = !this.showingHiddenOnly;
+        
+        const hiddenBtn = document.getElementById('hiddenBtn');
+        if (this.showingHiddenOnly) {
+            hiddenBtn.classList.add('active');
+            hiddenBtn.title = 'Show all videos';
+        } else {
+            hiddenBtn.classList.remove('active');
+            hiddenBtn.title = 'Show hidden files only';
+        }
+        
+        // Refresh the view with the new filter
+        this.applyCurrentFilters();
+    }
+    
+    updateHiddenCount() {
+        const countElement = document.getElementById('hiddenCount');
+        if (countElement) {
+            countElement.textContent = this.hiddenFiles.size;
+        }
+    }
+    
+    async toggleHiddenFile(videoId, event) {
+        // Prevent event bubbling
+        event.preventDefault();
+        event.stopPropagation();
+        
+        try {
+            // Find the video in allVideos
+            const video = this.allVideos.find(v => v.id === videoId);
+            if (!video) {
+                console.error('Video not found:', videoId);
+                return;
+            }
+            
+            const isCurrentlyHidden = this.hiddenFiles.has(videoId);
+            
+            const success = await window.electronAPI.saveHiddenFile(videoId, !isCurrentlyHidden);
+            
+            if (success) {
+                // Update the hidden files Set
+                if (isCurrentlyHidden) {
+                    this.hiddenFiles.delete(videoId);
+                } else {
+                    this.hiddenFiles.add(videoId);
+                }
+                
+                this.updateHiddenCount();
+                
+                // Refresh the view to hide/show the video
+                this.applyCurrentFilters();
+                
+                const action = isCurrentlyHidden ? 'shown' : 'hidden';
+                this.showStatus(`Video "${video.name}" ${action}`);
+            } else {
+                console.error('Failed to toggle hidden status');
+            }
+        } catch (error) {
+            console.error('Error toggling hidden file:', error);
+        }
     }
 }
 

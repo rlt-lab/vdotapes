@@ -202,6 +202,90 @@ body {
     fill: currentColor;
 }
 
+.multi-view-btn {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 0.5rem;
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.multi-view-btn:hover {
+    background: #444;
+    border-color: #667eea;
+    color: #fff;
+    transform: scale(1.05);
+}
+
+.multi-view-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+}
+
+.multi-view-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.multi-view-count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+    background: #555;
+    border-radius: 50%;
+    padding: 0.2rem 0.4rem;
+}
+
+.hidden-btn {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 0.5rem;
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.hidden-btn:hover {
+    background: #444;
+    border-color: #f39c12;
+    color: #fff;
+    transform: scale(1.05);
+}
+
+.hidden-btn.active {
+    background: #f39c12;
+    border-color: #f39c12;
+    color: white;
+}
+
+.hidden-btn .eye-icon {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.hidden-count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+    background: #555;
+    border-radius: 50%;
+    padding: 0.2rem 0.4rem;
+}
+
 .shuffle-btn.shuffling svg {
     animation: spin 1s linear infinite;
 }
@@ -362,11 +446,12 @@ body {
     transition: fill 0.2s ease;
 }
 
-.video-favorite.favorited .heart-icon {
+.video-favorite:hover .heart-icon {
     fill: #e74c3c;
 }
 
-.video-favorite:hover .heart-icon {
+.video-favorite.favorited .heart-icon,
+.video-favorite.favorited:hover .heart-icon {
     fill: #e74c3c;
 }
 
@@ -393,10 +478,14 @@ body {
 
 .expanded-video {
     max-width: 90vw;
-    max-height: 90vh;
-    border-radius: 12px;
+    max-height: 100vh;
+    width: auto;
+    height: 100vh;
+    object-fit: contain;
+    cursor: pointer;
     box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
 }
+
 
 .close-btn {
     position: absolute;
@@ -419,6 +508,53 @@ body {
 
 .close-btn:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+/* Multi-view overlay */
+.multi-view-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.multi-view-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.multi-view-container {
+    display: flex;
+    gap: 1rem;
+    max-width: 95vw;
+    max-height: 90vh;
+    align-items: center;
+    justify-content: center;
+}
+
+.multi-view-video {
+    flex: 1;
+    max-width: 30vw;
+    max-height: 85vh;
+    border-radius: 12px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+}
+
+.multi-view-container.single .multi-view-video {
+    max-width: 80vw;
+}
+
+.multi-view-container.dual .multi-view-video {
+    max-width: 45vw;
 }
 
 .loading {
@@ -535,4 +671,52 @@ input:focus {
 ::selection {
     background: rgba(102, 126, 234, 0.3);
     color: white;
+}
+
+/* Context Menu */
+.context-menu {
+    position: fixed;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 4px 0;
+    min-width: 200px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    display: none;
+}
+
+.context-menu.show {
+    display: block;
+}
+
+.context-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    cursor: pointer;
+    color: #e0e0e0;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.context-menu-item:hover {
+    background: #3a3a3a;
+}
+
+.context-menu-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+    fill: #e0e0e0;
+}
+
+.context-menu-item:hover .context-menu-icon {
+    fill: #667eea;
 }

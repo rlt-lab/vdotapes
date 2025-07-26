@@ -22,6 +22,13 @@
                     <span class="favorites-count" id="favoritesCount">0</span>
                 </button>
                 
+                <button class="hidden-btn" id="hiddenBtn" title="Show hidden files only">
+                    <svg viewBox="0 0 24 24" class="eye-icon">
+                        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                    </svg>
+                    <span class="hidden-count" id="hiddenCount">0</span>
+                </button>
+                
                 <div class="filter-group">
                     <label for="folderSelect">Folder:</label>
                     <select id="folderSelect">
@@ -45,6 +52,13 @@
                     <svg viewBox="0 0 24 24">
                         <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zM14.83 13.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
                     </svg>
+                </button>
+                
+                <button class="multi-view-btn" id="multiViewBtn" title="Show multi-view">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M16 16H2v2h14v-2zm-5-4H2v2h9v-2zm5 0h5v2h-5v-2zm0-4h5v2h-5v-2zM2 8h9v2H2V8zm0-4h14v2H2V4z"/>
+                    </svg>
+                    <span class="multi-view-count" id="multiViewCount">0</span>
                 </button>
                 
                 <div class="grid-size-control">
@@ -80,7 +94,43 @@
 
     <div class="expanded-overlay" id="expandedOverlay">
         <button class="close-btn" id="closeBtn">×</button>
-        <video class="expanded-video" id="expandedVideo" controls loop></video>
+        <video class="expanded-video" id="expandedVideo" loop></video>
+    </div>
+
+    <div class="multi-view-overlay" id="multiViewOverlay">
+        <button class="close-btn" id="multiViewCloseBtn">×</button>
+        <div class="multi-view-container" id="multiViewContainer">
+            <!-- Multi-view videos will be inserted here -->
+        </div>
+    </div>
+
+    <div class="context-menu" id="contextMenu">
+        <ul>
+            <li class="context-menu-item" data-action="open-location">
+                <svg viewBox="0 0 24 24" class="context-menu-icon">
+                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                </svg>
+                Open File Location
+            </li>
+            <li class="context-menu-item" data-action="toggle-favorite">
+                <svg viewBox="0 0 24 24" class="context-menu-icon">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+                <span class="favorite-text">Add to Favorites</span>
+            </li>
+            <li class="context-menu-item" data-action="toggle-hidden">
+                <svg viewBox="0 0 24 24" class="context-menu-icon">
+                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                </svg>
+                <span class="hidden-text">Hide</span>
+            </li>
+            <li class="context-menu-item" data-action="add-to-multi-view">
+                <svg viewBox="0 0 24 24" class="context-menu-icon">
+                    <path d="M16 16H2v2h14v-2zm-5-4H2v2h9v-2zm5 0h5v2h-5v-2zm0-4h5v2h-5v-2zM2 8h9v2H2V8zm0-4h14v2H2V4z"/>
+                </svg>
+                Add to Multi-View
+            </li>
+        </ul>
     </div>
 
     <script src="renderer.js"></script>

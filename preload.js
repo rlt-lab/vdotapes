@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVideos: (filters) => ipcRenderer.invoke('get-videos', filters),
   saveFavorite: (videoId, isFavorite) => ipcRenderer.invoke('save-favorite', videoId, isFavorite),
   getFavorites: () => ipcRenderer.invoke('get-favorites'),
+  saveHiddenFile: (videoId, isHidden) => ipcRenderer.invoke('save-hidden-file', videoId, isHidden),
+  getHiddenFiles: () => ipcRenderer.invoke('get-hidden-files'),
   
   // Rating operations
   saveRating: (videoId, rating) => ipcRenderer.invoke('save-rating', videoId, rating),
@@ -32,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File operations
   getVideoMetadata: (filePath) => ipcRenderer.invoke('get-video-metadata', filePath),
   validateVideoFile: (filePath) => ipcRenderer.invoke('validate-video-file', filePath),
+  showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
   
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),

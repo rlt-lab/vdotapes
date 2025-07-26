@@ -114,6 +114,15 @@ class VideoDatabase {
       )
     `);
 
+    // Hidden files table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS hidden_files (
+        video_id TEXT PRIMARY KEY,
+        hidden_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+      )
+    `);
+
     // Settings table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -515,6 +524,98 @@ class VideoDatabase {
       return stmt.all().map(row => row.video_id);
     } catch (error) {
       console.error('Error getting favorites:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Add video to hidden files
+   */
+  addHiddenFile(videoId) {
+    if (!this.db || !this.initialized) {
+      // Database not initialized
+      return false;
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR IGNORE INTO hidden_files (video_id) VALUES (?)
+      `);
+      
+      stmt.run(videoId);
+      return true;
+    } catch (error) {
+      console.error('Error adding hidden file:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Remove video from hidden files
+   */
+  removeHiddenFile(videoId) {
+    if (!this.db || !this.initialized) {
+      // Database not initialized
+      return false;
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        DELETE FROM hidden_files WHERE video_id = ?
+      `);
+      
+      stmt.run(videoId);
+      return true;
+    } catch (error) {
+      console.error('Error removing hidden file:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Toggle hidden file status
+   */
+  toggleHiddenFile(videoId) {
+    if (!this.db || !this.initialized) {
+      // Database not initialized
+      return false;
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT video_id FROM hidden_files WHERE video_id = ?
+      `);
+      
+      const existing = stmt.get(videoId);
+      
+      if (existing) {
+        return this.removeHiddenFile(videoId);
+      } else {
+        return this.addHiddenFile(videoId);
+      }
+    } catch (error) {
+      console.error('Error toggling hidden file:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get all hidden file video IDs
+   */
+  getHiddenFiles() {
+    if (!this.db || !this.initialized) {
+      // Database not initialized
+      return [];
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT video_id FROM hidden_files ORDER BY hidden_at DESC
+      `);
+      
+      return stmt.all().map(row => row.video_id);
+    } catch (error) {
+      console.error('Error getting hidden files:', error);
       return [];
     }
   }

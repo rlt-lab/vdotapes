@@ -1,4 +1,4 @@
-const { ipcMain } = require('electron');
+const { ipcMain, shell } = require('electron');
 const VideoScanner = require('./video-scanner');
 const VideoDatabase = require('./database');
 const ThumbnailGenerator = require('./thumbnail-gen');
@@ -46,6 +46,8 @@ class IPCHandlers {
     ipcMain.handle('get-videos', this.handleGetVideos.bind(this));
     ipcMain.handle('save-favorite', this.handleSaveFavorite.bind(this));
     ipcMain.handle('get-favorites', this.handleGetFavorites.bind(this));
+    ipcMain.handle('save-hidden-file', this.handleSaveHiddenFile.bind(this));
+    ipcMain.handle('get-hidden-files', this.handleGetHiddenFiles.bind(this));
     ipcMain.handle('get-folders', this.handleGetFolders.bind(this));
     ipcMain.handle('get-video-by-id', this.handleGetVideoById.bind(this));
     ipcMain.handle('get-db-stats', this.handleGetDbStats.bind(this));
@@ -63,6 +65,7 @@ class IPCHandlers {
     // File operation handlers
     ipcMain.handle('get-video-metadata', this.handleGetVideoMetadata.bind(this));
     ipcMain.handle('validate-video-file', this.handleValidateVideoFile.bind(this));
+    ipcMain.handle('show-item-in-folder', this.handleShowItemInFolder.bind(this));
     
     // Settings handlers
     ipcMain.handle('get-settings', this.handleGetSettings.bind(this));
@@ -167,6 +170,44 @@ class IPCHandlers {
       return this.database.getFavorites();
     } catch (error) {
       console.error('Error getting favorites:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Handle saving hidden file
+   */
+  async handleSaveHiddenFile(event, videoId, isHidden) {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      if (isHidden) {
+        const result = this.database.addHiddenFile(videoId);
+        return result;
+      } else {
+        const result = this.database.removeHiddenFile(videoId);
+        return result;
+      }
+    } catch (error) {
+      console.error('Error saving hidden file:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Handle getting hidden files
+   */
+  async handleGetHiddenFiles() {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      return this.database.getHiddenFiles();
+    } catch (error) {
+      console.error('Error getting hidden files:', error);
       return [];
     }
   }
@@ -542,6 +583,27 @@ class IPCHandlers {
       
       return this.videoScanner.isValidVideoFile(path.basename(filePath));
     } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Handle showing item in folder
+   */
+  async handleShowItemInFolder(event, filePath) {
+    try {
+      // Verify the file exists
+      const stats = await fs.stat(filePath);
+      if (!stats.isFile()) {
+        console.error('File not found:', filePath);
+        return false;
+      }
+      
+      // Show the item in the file explorer
+      shell.showItemInFolder(filePath);
+      return true;
+    } catch (error) {
+      console.error('Error showing item in folder:', error);
       return false;
     }
   }
