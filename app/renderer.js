@@ -24,6 +24,14 @@ class VdoTapesApp {
         this.previousViewState = { folder: '', sort: 'folder' };
         this.currentExpandedIndex = -1; // Track which video is currently expanded
         
+        // Smart loading for all collections (no heavy virtualization)
+        this.smartLoader = null;
+        this.useSmartLoading = true;
+        
+        // Video lifecycle management - disabled for now
+        this.videoLifecycleManager = null;
+        this.videoVisibilityManager = null;
+        
         this.init();
     }
     
@@ -42,6 +50,7 @@ class VdoTapesApp {
         
         this.setupEventListeners();
         this.setupIntersectionObserver();
+        this.setupSmartLoader();
         this.updateGridSize();
         this.updateFavoritesCount();
         
@@ -261,26 +270,37 @@ class VdoTapesApp {
     }
     
     setupIntersectionObserver() {
+        // Legacy observer - now handled by smart loader
+        this.observer = null;
+    }
+    
+    setupSmartLoader() {
         try {
-            this.observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    const video = entry.target.querySelector('video');
-                    if (!video) return;
-                    
-                    if (entry.isIntersecting) {
-                        this.handleVideoVisible(video, entry.target);
-                    } else {
-                        this.pauseVideo(video);
-                    }
-                });
-            }, {
-                root: null,
-                rootMargin: '100px',
-                threshold: 0.1
+            this.smartLoader = new VideoSmartLoader({
+                maxActiveVideos: 30,
+                loadBuffer: 20
             });
+            console.log('Smart video loader initialized');
         } catch (error) {
-            console.error('Error setting up IntersectionObserver:', error);
-            this.observer = null;
+            console.error('Error setting up smart loader:', error);
+            this.smartLoader = null;
+        }
+    }
+    
+    setupVideoLifecycleManager() {
+        try {
+            this.videoLifecycleManager = new VideoLifecycleManager({
+                maxActiveVideos: 20,
+                cleanupInterval: 30000
+            });
+            
+            this.videoVisibilityManager = new VideoVisibilityManager(this.videoLifecycleManager);
+            
+            console.log('Video lifecycle manager initialized');
+        } catch (error) {
+            console.error('Error setting up video lifecycle manager:', error);
+            this.videoLifecycleManager = null;
+            this.videoVisibilityManager = null;
         }
     }
     
@@ -374,22 +394,6 @@ class VdoTapesApp {
         this.currentSort = sortMode;
         this.updateSortButtonStates();
         
-        // Debug: Log some date info when switching to date sort
-        if (sortMode === 'date' && this.allVideos.length > 0) {
-            console.log('=== DATE SORT DEBUG ===');
-            console.log('Total videos:', this.allVideos.length);
-            console.log('First 5 videos with dates:');
-            this.allVideos.slice(0, 5).forEach((video, index) => {
-                const timestamp = video.lastModified;
-                const date = new Date(timestamp);
-                console.log(`${index + 1}. ${video.name}`);
-                console.log(`   - Raw timestamp: ${timestamp}`);
-                console.log(`   - Date object: ${date}`);
-                console.log(`   - Is valid: ${!isNaN(date.getTime())}`);
-                console.log(`   - Folder: ${video.folder || 'root'}`);
-            });
-            console.log('========================');
-        }
         
         this.applyCurrentFilters();
         this.updateStatusMessage();
@@ -399,11 +403,16 @@ class VdoTapesApp {
     updateSortButtonStates() {
         document.getElementById('sortFolderBtn').classList.toggle('active', this.currentSort === 'folder');
         document.getElementById('sortDateBtn').classList.toggle('active', this.currentSort === 'date');
+        document.getElementById('shuffleBtn').classList.toggle('active', this.currentSort === 'shuffle');
     }
 
     async shuffleVideos() {
         const btn = document.getElementById('shuffleBtn');
         btn.classList.add('shuffling');
+        
+        // Set shuffle mode
+        this.currentSort = 'shuffle';
+        this.updateSortButtonStates();
         
         // Create a copy of the current displayed videos to shuffle
         let videosToShuffle = [...this.displayedVideos];
@@ -486,11 +495,6 @@ class VdoTapesApp {
             });
         } else if (this.currentSort === 'date') {
             // Sort by date only (newest first), ignoring folders completely
-            console.log('Sorting by date - before sort, first 3 videos:');
-            filtered.slice(0, 3).forEach((video, index) => {
-                console.log(`${index + 1}. ${video.name} - timestamp: ${video.lastModified} - folder: ${video.folder || 'root'}`);
-            });
-            
             filtered.sort((a, b) => {
                 const dateA = a.lastModified || 0;
                 const dateB = b.lastModified || 0;
@@ -498,11 +502,9 @@ class VdoTapesApp {
                 // Sort newest first (higher timestamp first)
                 return dateB - dateA;
             });
-            
-            console.log('After sort, first 3 videos:');
-            filtered.slice(0, 3).forEach((video, index) => {
-                console.log(`${index + 1}. ${video.name} - timestamp: ${video.lastModified} - folder: ${video.folder || 'root'}`);
-            });
+        } else if (this.currentSort === 'shuffle') {
+            // Don't re-shuffle if already shuffled - maintain current order
+            // Shuffle happens in shuffleVideos() function
         }
         
         this.displayedVideos = filtered;
@@ -517,15 +519,57 @@ class VdoTapesApp {
             return;
         }
         
-        // Disconnect observer if it exists
-        if (this.observer) {
-            try {
-                this.observer.disconnect();
-            } catch (error) {
-                console.error('Error disconnecting observer:', error);
-            }
+        // Always use traditional grid with smart loading
+        this.renderSmartGrid();
+    }
+    
+    renderVirtualizedGrid() {
+        // Create or update virtualized container
+        document.getElementById('content').innerHTML = `
+            <div id="virtualized-grid-container" class="content"></div>
+        `;
+        
+        const container = document.getElementById('virtualized-grid-container');
+        
+        // Initialize virtualizer if needed
+        if (!this.virtualizer) {
+            this.virtualizer = new VideoGridVirtualizer({
+                itemHeight: 300,
+                itemsPerRow: this.gridCols,
+                buffer: 3,
+                onVideoClick: (video, index) => {
+                    this.expandVideo(index);
+                },
+                onFavoriteToggle: (videoId, event) => {
+                    this.toggleFavorite(videoId, event);
+                },
+                isFavorite: (videoId) => {
+                    return this.favorites.has(videoId);
+                },
+                formatFileSize: (size) => {
+                    return this.formatFileSize(size);
+                }
+            });
         }
         
+        // Update virtualizer
+        this.virtualizer.setContainer(container);
+        this.virtualizer.setItemsPerRow(this.gridCols);
+        this.virtualizer.setVideos(this.displayedVideos);
+        
+        // Force a layout update after setting videos
+        setTimeout(() => {
+            if (this.virtualizer) {
+                this.virtualizer.updateLayout();
+            }
+        }, 50);
+        
+        // Log performance info
+        const stats = this.virtualizer.getStats();
+        console.log(`Virtualization: ${stats.visibleVideos}/${stats.totalVideos} videos rendered (${stats.memoryEfficiency} efficiency)`);
+    }
+    
+    renderSmartGrid() {
         const gridHTML = this.displayedVideos.map((video, index) => 
             this.createVideoItemHTML(video, index)
         ).join('');
@@ -535,24 +579,33 @@ class VdoTapesApp {
         `;
         
         this.updateGridLayout();
-        this.observeVideoItems();
+        this.observeVideoItemsWithSmartLoader();
+        
+        // Log performance info
+        if (this.smartLoader) {
+            const stats = this.smartLoader.getStats();
+            console.log(`Smart Loading: ${stats.loadedVideos} loaded, ${stats.activeVideos}/${stats.maxActiveVideos} active`);
+        }
     }
     
+    renderTraditionalGrid() {
+        // Legacy method - now uses smart grid
+        this.renderSmartGrid();
+    }
+    
+    
     createVideoItemHTML(video, index) {
-        // Debug: Log video object to see what's in folder property
-        console.log('Creating video item for:', video.name, 'Folder:', video.folder);
-        
         // Use the isFavorite property from the database result
         const isFavorited = video.isFavorite === true;
         return `
-            <div class="video-item" data-index="${index}" data-video-id="${video.id}" title="${video.folder || 'Root folder'}">
+            <div class="video-item" data-index="${index}" data-video-id="${video.id}" title="${video.name}">
                 <video 
                     data-src="${video.path}"
                     data-duration=""
                     muted 
                     loop
                     preload="none"
-                    title="${video.folder || 'Root folder'}"
+                    title="${video.name}"
                 ></video>
                 <button class="video-favorite ${isFavorited ? 'favorited' : ''}" data-video-id="${video.id}">
                     <svg viewBox="0 0 24 24" class="heart-icon">
@@ -571,15 +624,15 @@ class VdoTapesApp {
         `;
     }
     
-    observeVideoItems() {
-        const items = document.querySelectorAll('.video-item');
+    observeVideoItemsWithSmartLoader() {
+        const container = document.querySelector('.video-grid');
         
-        // Only observe if observer is available
-        if (this.observer) {
-            items.forEach(item => this.observer.observe(item));
+        if (this.smartLoader && container) {
+            this.smartLoader.observeVideoItems(container);
         }
         
-        // Add click listeners for video expansion (but not for favorite buttons)
+        // Add click listeners for video expansion
+        const items = document.querySelectorAll('.video-item');
         items.forEach((item, index) => {
             item.addEventListener('click', (e) => {
                 // Don't expand if clicking on favorite button
@@ -588,6 +641,11 @@ class VdoTapesApp {
                 }
             });
         });
+    }
+    
+    observeVideoItems() {
+        // Legacy method - now uses smart loader
+        this.observeVideoItemsWithSmartLoader();
     }
     
     handleVideoVisible(videoElement, container) {
@@ -613,12 +671,12 @@ class VdoTapesApp {
             videoElement.src = src;
             videoElement.preload = 'metadata';
             
-            // Ensure the video element shows subfolder name, not filename
+            // Ensure the video element shows the correct title
             const videoIndex = Array.from(container.parentElement.children).indexOf(container);
             const video = this.displayedVideos[videoIndex];
             if (video) {
-                videoElement.title = video.folder || 'Root folder';
-                container.title = video.folder || 'Root folder';
+                videoElement.title = video.name;
+                container.title = video.name;
             }
             
             const handleLoad = () => {
@@ -629,8 +687,8 @@ class VdoTapesApp {
                 const videoIndex = Array.from(container.parentElement.children).indexOf(container);
                 const video = this.displayedVideos[videoIndex];
                 if (video) {
-                    videoElement.title = video.folder || 'Root folder';
-                    container.title = video.folder || 'Root folder';
+                    videoElement.title = video.name;
+                    container.title = video.name;
                 }
                 
                 this.startVideoPlayback(videoElement);
@@ -876,6 +934,11 @@ class VdoTapesApp {
         this.gridCols = parseInt(document.getElementById('gridCols').value);
         this.updateGridLayout();
         this.saveSettings();
+        
+        // No special handling needed for smart loader - just re-render
+        if (this.displayedVideos.length > 0) {
+            this.renderGrid();
+        }
     }
     
     updateGridLayout() {

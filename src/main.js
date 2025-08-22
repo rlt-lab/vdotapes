@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const IPCHandlers = require('./src/ipc-handlers');
+const IPCHandlers = require('./ipc-handlers');
 
 // Keep a global reference of the window object
 let mainWindow;
@@ -28,13 +27,13 @@ function createWindow() {
       webSecurity: true,
       allowRunningInsecureContent: false
     },
-    icon: path.join(__dirname, 'app/assets/icon.png'),
+    icon: path.join(__dirname, '../app/assets/icon.png'),
     titleBarStyle: 'default',
-    show: true // Show immediately for debugging
+    show: false
   });
 
   // Load the index.html file
-  const indexPath = path.join(__dirname, 'app/index.html');
+  const indexPath = path.join(__dirname, '../app/index.html');
   console.log('Loading index.html from:', indexPath);
   mainWindow.loadFile(indexPath);
 

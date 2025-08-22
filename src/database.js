@@ -1,12 +1,22 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs').promises;
+const { QueryCache, CacheWarmer } = require('./query-cache');
+const QueryPerformanceMonitor = require('./performance-monitor');
 
 class VideoDatabase {
   constructor() {
     this.db = null;
     this.dbPath = null;
     this.initialized = false;
+    
+    // Performance and caching
+    this.queryCache = new QueryCache(50, 300000); // 50 entries, 5 min TTL
+    this.performanceMonitor = new QueryPerformanceMonitor();
+    this.cacheWarmer = null;
+    
+    // Prepared statements cache
+    this.preparedQueries = new Map();
   }
 
   /**
@@ -50,6 +60,9 @@ class VideoDatabase {
       this.db.pragma('temp_store = MEMORY');
       
       await this.createTables();
+      await this.runMigrations();
+      this.initializePreparedStatements();
+      this.initializeCacheWarmer();
       this.initialized = true;
       
       console.log('Database initialized successfully');
@@ -132,7 +145,7 @@ class VideoDatabase {
       )
     `);
 
-    // Create indexes for better performance
+    // Create basic indexes for better performance
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_videos_folder ON videos (folder);
       CREATE INDEX IF NOT EXISTS idx_videos_name ON videos (name);
@@ -140,6 +153,152 @@ class VideoDatabase {
       CREATE INDEX IF NOT EXISTS idx_videos_size ON videos (size);
       CREATE INDEX IF NOT EXISTS idx_ratings_rating ON ratings (rating);
     `);
+  }
+
+  /**
+   * Database migration system
+   */
+  async runMigrations() {
+    const currentVersion = this.getCurrentSchemaVersion();
+    const migrations = [
+      this.migration001_addAdvancedIndexes.bind(this),
+      this.migration002_optimizeExistingIndexes.bind(this)
+    ];
+
+    for (let i = currentVersion; i < migrations.length; i++) {
+      console.log(`Running migration ${i + 1}...`);
+      await migrations[i]();
+      this.setSchemaVersion(i + 1);
+    }
+  }
+
+  getCurrentSchemaVersion() {
+    try {
+      const result = this.db.prepare('SELECT value FROM settings WHERE key = ?').get('schema_version');
+      return result ? parseInt(result.value) : 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  setSchemaVersion(version) {
+    try {
+      this.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+        .run('schema_version', version.toString());
+    } catch (error) {
+      console.error('Error setting schema version:', error);
+    }
+  }
+
+  migration001_addAdvancedIndexes() {
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_videos_path ON videos (path)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_created ON videos (created)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_folder_modified ON videos (folder, last_modified DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_size_desc ON videos (size DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_favorites_added ON favorites (added_at DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_updated ON videos (updated_at)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_name_folder ON videos (name, folder)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_folder_size ON videos (folder, size DESC)'
+    ];
+
+    indexes.forEach(sql => {
+      try {
+        this.db.exec(sql);
+      } catch (error) {
+        console.warn('Error creating index:', error.message);
+      }
+    });
+  }
+
+  migration002_optimizeExistingIndexes() {
+    // Add composite indexes for common query patterns
+    const compositeIndexes = [
+      'CREATE INDEX IF NOT EXISTS idx_videos_folder_date_size ON videos (folder, last_modified DESC, size DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_name_date ON videos (name, last_modified DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_size_date ON videos (size DESC, last_modified DESC)'
+    ];
+
+    compositeIndexes.forEach(sql => {
+      try {
+        this.db.exec(sql);
+      } catch (error) {
+        console.warn('Error creating composite index:', error.message);
+      }
+    });
+  }
+
+  /**
+   * Initialize prepared statements for better performance
+   */
+  initializePreparedStatements() {
+    try {
+      // Frequently used queries
+      this.preparedQueries.set('videosByFolder', this.db.prepare(`
+        SELECT id, name, path, relative_path, folder, size, duration, width, height, 
+               codec, bitrate, last_modified, created, added_at, updated_at
+        FROM videos 
+        WHERE folder = ? OR (folder IS NULL AND ? IS NULL)
+        ORDER BY last_modified DESC
+        LIMIT ? OFFSET ?
+      `));
+
+      this.preparedQueries.set('favoriteIds', this.db.prepare(`
+        SELECT video_id FROM favorites ORDER BY added_at DESC
+      `));
+
+      this.preparedQueries.set('videoRatings', this.db.prepare(`
+        SELECT video_id, rating FROM ratings WHERE video_id IN (${Array(50).fill('?').join(',')})
+      `));
+
+      this.preparedQueries.set('videoSearch', this.db.prepare(`
+        SELECT id, name, path, relative_path, folder, size, last_modified
+        FROM videos 
+        WHERE (name LIKE ? OR folder LIKE ?)
+        AND (folder = ? OR ? IS NULL)
+        ORDER BY 
+          CASE 
+            WHEN name LIKE ? THEN 1 
+            WHEN folder LIKE ? THEN 2 
+            ELSE 3 
+          END,
+          last_modified DESC
+        LIMIT ?
+      `));
+
+      this.preparedQueries.set('videoCount', this.db.prepare(`
+        SELECT COUNT(*) as count FROM videos WHERE folder = ? OR (folder IS NULL AND ? IS NULL)
+      `));
+
+      this.preparedQueries.set('videoById', this.db.prepare(`
+        SELECT * FROM videos WHERE id = ?
+      `));
+
+      console.log('Prepared statements initialized');
+    } catch (error) {
+      console.error('Error initializing prepared statements:', error);
+    }
+  }
+
+  /**
+   * Initialize cache warmer
+   */
+  initializeCacheWarmer() {
+    try {
+      this.cacheWarmer = new CacheWarmer(this);
+      
+      // Warm cache after a short delay
+      setTimeout(() => {
+        this.cacheWarmer.warmCommonQueries();
+      }, 2000);
+      
+      // Schedule periodic warming
+      this.cacheWarmer.schedulePeriodicWarming(600000); // 10 minutes
+      
+      console.log('Cache warmer initialized');
+    } catch (error) {
+      console.error('Error initializing cache warmer:', error);
+    }
   }
 
 
@@ -207,6 +366,10 @@ class VideoDatabase {
         );
       }
 
+      // Invalidate cache
+      this.queryCache.invalidate('getVideos');
+      this.queryCache.invalidate('getFolders');
+      
       return true;
     } catch (error) {
       console.error('Error adding video to database:', error);
@@ -252,6 +415,11 @@ class VideoDatabase {
 
     try {
       transaction(videos);
+      
+      // Invalidate cache
+      this.queryCache.invalidate('getVideos');
+      this.queryCache.invalidate('getFolders');
+      
       return true;
     } catch (error) {
       console.error('Error adding videos to database:', error);
@@ -268,6 +436,32 @@ class VideoDatabase {
       return [];
     }
 
+    // Check cache first
+    const cacheKey = 'getVideos';
+    const cached = this.queryCache.get(cacheKey, filters);
+    if (cached) {
+      return cached;
+    }
+
+    // Wrap with performance monitoring
+    const monitoredQuery = this.performanceMonitor.wrapQuery('getVideos', () => {
+      return this.getVideosQuery(filters);
+    });
+
+    try {
+      const result = monitoredQuery();
+      
+      // Cache the result
+      this.queryCache.set(cacheKey, filters, result);
+      
+      return result;
+    } catch (error) {
+      console.error('Error getting videos:', error);
+      return [];
+    }
+  }
+
+  getVideosQuery(filters = {}) {
     try {
       let query = `
         SELECT v.*, 
@@ -347,20 +541,6 @@ class VideoDatabase {
       const stmt = this.db.prepare(query);
       const videos = stmt.all(...params);
 
-      // Debug: Log first few videos and their dates
-      if (videos.length > 0) {
-        console.log('=== DATABASE DEBUG ===');
-        console.log('Query:', query);
-        console.log('Params:', params);
-        console.log('First 3 videos from database:');
-        videos.slice(0, 3).forEach((video, index) => {
-          console.log(`${index + 1}. ${video.name}`);
-          console.log(`   - Raw last_modified: ${video.last_modified}`);
-          console.log(`   - Type: ${typeof video.last_modified}`);
-          console.log(`   - Folder: ${video.folder || 'root'}`);
-        });
-        console.log('=====================');
-      }
 
       return videos.map(video => ({
         ...video,
@@ -496,11 +676,20 @@ class VideoDatabase {
       
       const existing = stmt.get(videoId);
       
+      let result;
       if (existing) {
-        return this.removeFavorite(videoId);
+        result = this.removeFavorite(videoId);
       } else {
-        return this.addFavorite(videoId);
+        result = this.addFavorite(videoId);
       }
+      
+      // Invalidate cache
+      if (result) {
+        this.queryCache.invalidate('getVideos');
+        this.queryCache.invalidate('getFavorites');
+      }
+      
+      return result;
     } catch (error) {
       console.error('Error toggling favorite:', error);
       return false;
@@ -988,6 +1177,52 @@ class VideoDatabase {
   }
 
   /**
+   * Get performance and cache statistics
+   */
+  getPerformanceStats() {
+    const cacheStats = this.queryCache.getStats();
+    const performanceStats = this.performanceMonitor.getSummaryStats();
+    const performanceReport = this.performanceMonitor.generateReport();
+    
+    return {
+      cache: cacheStats,
+      performance: performanceStats,
+      recommendations: performanceReport.recommendations,
+      slowQueries: performanceReport.slowQueries.slice(0, 3) // Top 3 slow queries
+    };
+  }
+
+  /**
+   * Log performance report to console
+   */
+  logPerformanceReport() {
+    const stats = this.getPerformanceStats();
+    
+    console.log('=== Database Performance Report ===');
+    console.log('Cache Hit Rate:', `${stats.cache.hitRate.toFixed(1)}%`);
+    console.log('Cache Size:', `${stats.cache.size}/${stats.cache.maxSize}`);
+    console.log('Average Query Time:', `${stats.performance.avgQueryTime}ms`);
+    console.log('Total Queries:', stats.performance.totalQueries);
+    console.log('Queries/Second:', stats.performance.queriesPerSecond);
+    
+    if (stats.slowQueries.length > 0) {
+      console.log('Recent Slow Queries:');
+      stats.slowQueries.forEach(q => {
+        console.log(`  ${q.queryName}: ${q.duration}ms`);
+      });
+    }
+    
+    if (stats.recommendations.length > 0) {
+      console.log('Performance Recommendations:');
+      stats.recommendations.forEach(rec => {
+        console.log(`  ${rec.type}: ${rec.suggestion}`);
+      });
+    }
+    
+    return stats;
+  }
+
+  /**
    * Close database connection
    */
   close() {
@@ -995,6 +1230,16 @@ class VideoDatabase {
       this.db.close();
       this.db = null;
       this.initialized = false;
+    }
+    
+    // Clean up performance monitoring
+    if (this.performanceMonitor) {
+      this.performanceMonitor.reset();
+    }
+    
+    // Clear cache
+    if (this.queryCache) {
+      this.queryCache.clear();
     }
   }
 }

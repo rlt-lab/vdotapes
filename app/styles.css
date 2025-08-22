@@ -196,6 +196,12 @@ body {
     transform: scale(1.05);
 }
 
+.shuffle-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+}
+
 .shuffle-btn svg {
     width: 18px;
     height: 18px;
@@ -315,8 +321,46 @@ body {
 .video-grid {
     display: grid;
     grid-template-columns: repeat(var(--grid-cols, 4), 1fr);
-    gap: 2px;
+    gap: 1px;
     margin-top: 1rem;
+    padding: 0;
+}
+
+/* Virtual Grid Styles */
+.virtual-grid-container {
+    width: 100%;
+    height: calc(100vh - 200px); /* Adjust based on header height */
+    overflow: auto;
+    margin-top: 1rem;
+}
+
+.virtual-spacer-top,
+.virtual-spacer-bottom {
+    width: 100%;
+    pointer-events: none;
+}
+
+/* Virtualized Grid Container */
+#virtualized-grid-container {
+    margin-top: 1rem;
+}
+
+/* Virtual grid uses the same styles as regular grid */
+.virtual-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-cols, 4), 1fr);
+    gap: 1px;
+    padding: 0;
+}
+
+.virtual-visible-container {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-cols, 4), 1fr);
+    gap: 2px;
+}
+
+.virtual-video-item {
+    height: 300px; /* Fixed height for virtualization */
 }
 
 .video-item {

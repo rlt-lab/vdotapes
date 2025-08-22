@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Beautiful video grid viewer and organizer",
   "author": "VDOTapes Team",
-  "main": "main.js",
+  "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
@@ -13,7 +13,7 @@
     "pack": "electron-builder --dir"
   },
   "build": {
-    "appId": "com.yourcompany.vdotapes",
+    "appId": "com.vdotapes.app",
     "productName": "VDOTapes",
     "directories": {
       "output": "dist"
@@ -24,7 +24,7 @@
       "target": "dmg"
     },
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "app/assets/icon.png",
       "target": [
         {
           "target": "portable",
@@ -44,14 +44,9 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
     "electron": "^37.2.1",
-    "electron-builder": "^26.0.12",
-    "electron-rebuild": "^3.2.9"
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
-    "@emnapi/runtime": "^1.4.4",
-    "better-sqlite3": "^12.2.0",
-    "canvas": "^3.1.2",
-    "electron-store": "^10.1.0",
-    "sqlite3": "^5.1.7"
+    "better-sqlite3": "^12.2.0"
   }
 }
