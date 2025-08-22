@@ -10,7 +10,7 @@
 <body>
     <div class="header">
         <div class="controls">
-            <div class="brand-title">VdoTapes</div>
+            <div class="brand-title">vdotapes</div>
             <button class="folder-btn" id="folderBtn">📁 Select Video Folder</button>
             <div class="status" id="status">No folder selected</div>
             
@@ -28,13 +28,6 @@
                     </svg>
                     <span class="hidden-count" id="hiddenCount">0</span>
                 </button>
-                
-                <div class="filter-group">
-                    <label for="folderSelect">Folder:</label>
-                    <select id="folderSelect">
-                        <option value="">All folders</option>
-                    </select>
-                </div>
                 
                 <button class="sort-btn" id="sortFolderBtn" title="Sort by folder" data-sort="folder">
                     <svg viewBox="0 0 24 24">
@@ -54,17 +47,31 @@
                     </svg>
                 </button>
                 
-                <button class="multi-view-btn" id="multiViewBtn" title="Show multi-view">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M16 16H2v2h14v-2zm-5-4H2v2h9v-2zm5 0h5v2h-5v-2zm0-4h5v2h-5v-2zM2 8h9v2H2V8zm0-4h14v2H2V4z"/>
-                    </svg>
-                    <span class="multi-view-count" id="multiViewCount">0</span>
-                </button>
-                
-                <div class="grid-size-control">
-                    <label>Grid:</label>
-                    <input type="number" id="gridCols" value="4" min="1" max="12">
-                    <span>cols</span>
+                <div class="grid-control">
+                    <button class="grid-btn" id="gridColsBtn" title="Adjust grid columns">
+                        <span>Grid</span>
+                        <span class="grid-count" id="gridColsCount">4</span>
+                    </button>
+                </div>
+
+                <div class="backup-dropdown" id="backupDropdown">
+                    <button class="backup-btn" id="backupBtn" title="Backup options">
+                        <svg viewBox="0 0 24 24" class="icon">
+                            <path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 2v4H7V5h10zM7 19v-6h10v6H7zm3-2h4v-2h-4v2z"/>
+                        </svg>
+                        <span>Backup</span>
+                    </button>
+                    <div class="backup-menu" id="backupMenu" role="menu" aria-label="Backup">
+                        <button id="backupExport" role="menuitem">Export</button>
+                        <button id="backupImport" role="menuitem">Import</button>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="folderSelect">Folder:</label>
+                    <select id="folderSelect">
+                        <option value="">All folders</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -95,6 +102,38 @@
     <div class="expanded-overlay" id="expandedOverlay">
         <button class="close-btn" id="closeBtn">×</button>
         <video class="expanded-video" id="expandedVideo" loop></video>
+        <aside class="expanded-sidebar" id="expandedSidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-toolbar">
+                    <button id="sidebarFavoriteBtn" class="sidebar-btn icon-btn heart" title="Favorite">
+                        <svg viewBox="0 0 24 24" class="icon">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                        </svg>
+                    </button>
+                    <button id="sidebarHiddenBtn" class="sidebar-btn icon-btn eye" title="Hide">
+                        <svg viewBox="0 0 24 24" class="icon">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </button>
+                    <button id="goToFileBtn" class="sidebar-btn icon-btn folder" title="Show File">
+                        <svg viewBox="0 0 24 24" class="icon">
+                            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <div class="section-title">Tags</div>
+                <div class="tag-list" id="tagList"></div>
+                <input type="text" id="tagInput" placeholder="Add tag and press Enter" />
+            </div>
+            <div class="sidebar-section">
+                <div class="section-title">Details</div>
+                <div class="meta-row"><span class="meta-key">Subfolder</span> <span id="metaFolder" class="meta-val"></span></div>
+                <div class="meta-row"><span class="meta-key">Length</span> <span id="metaLength" class="meta-val"></span></div>
+                <div class="meta-row"><span class="meta-key">Filename</span> <span id="metaFilename" class="meta-val"></span></div>
+            </div>
+        </aside>
     </div>
 
     <div class="multi-view-overlay" id="multiViewOverlay">
@@ -110,7 +149,7 @@
                 <svg viewBox="0 0 24 24" class="context-menu-icon">
                     <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                 </svg>
-                Open File Location
+                Show File
             </li>
             <li class="context-menu-item" data-action="toggle-favorite">
                 <svg viewBox="0 0 24 24" class="context-menu-icon">

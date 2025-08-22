@@ -136,6 +136,24 @@ class VideoDatabase {
       )
     `);
 
+    // Tags and mapping tables
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE COLLATE NOCASE
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS video_tags (
+        video_id TEXT NOT NULL,
+        tag_id INTEGER NOT NULL,
+        PRIMARY KEY (video_id, tag_id),
+        FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
+      )
+    `);
+
     // Settings table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -152,6 +170,9 @@ class VideoDatabase {
       CREATE INDEX IF NOT EXISTS idx_videos_last_modified ON videos (last_modified);
       CREATE INDEX IF NOT EXISTS idx_videos_size ON videos (size);
       CREATE INDEX IF NOT EXISTS idx_ratings_rating ON ratings (rating);
+      CREATE INDEX IF NOT EXISTS idx_tags_name ON tags (name);
+      CREATE INDEX IF NOT EXISTS idx_video_tags_video ON video_tags (video_id);
+      CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags (tag_id);
     `);
   }
 
@@ -226,6 +247,223 @@ class VideoDatabase {
         console.warn('Error creating composite index:', error.message);
       }
     });
+  }
+
+  /**
+   * Tagging helpers
+   */
+  upsertTag(name) {
+    if (!this.db || !this.initialized) return null;
+    try {
+      const insert = this.db.prepare(`
+        INSERT INTO tags (name) VALUES (?)
+        ON CONFLICT(name) DO UPDATE SET name = excluded.name
+        RETURNING id
+      `);
+      const row = insert.get(name.trim());
+      return row?.id || null;
+    } catch (error) {
+      console.error('Error upserting tag:', error);
+      return null;
+    }
+  }
+
+  addTagToVideo(videoId, tagName) {
+    if (!this.db || !this.initialized) return false;
+    try {
+      const tagId = this.upsertTag(tagName);
+      if (!tagId) return false;
+      const stmt = this.db.prepare(`
+        INSERT OR IGNORE INTO video_tags (video_id, tag_id) VALUES (?, ?)
+      `);
+      stmt.run(videoId, tagId);
+      // Invalidate caches that may depend on tags
+      this.queryCache.invalidate('getVideos');
+      return true;
+    } catch (error) {
+      console.error('Error adding tag to video:', error);
+      return false;
+    }
+  }
+
+  removeTagFromVideo(videoId, tagName) {
+    if (!this.db || !this.initialized) return false;
+    try {
+      const t = this.db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName.trim());
+      if (!t) return true; // nothing to remove
+      const stmt = this.db.prepare('DELETE FROM video_tags WHERE video_id = ? AND tag_id = ?');
+      stmt.run(videoId, t.id);
+      this.queryCache.invalidate('getVideos');
+      return true;
+    } catch (error) {
+      console.error('Error removing tag from video:', error);
+      return false;
+    }
+  }
+
+  listTagsForVideo(videoId) {
+    if (!this.db || !this.initialized) return [];
+    try {
+      const stmt = this.db.prepare(`
+        SELECT t.name FROM video_tags vt
+        JOIN tags t ON vt.tag_id = t.id
+        WHERE vt.video_id = ?
+        ORDER BY t.name COLLATE NOCASE
+      `);
+      return stmt.all(videoId).map(r => r.name);
+    } catch (error) {
+      console.error('Error listing tags for video:', error);
+      return [];
+    }
+  }
+
+  listAllTags() {
+    if (!this.db || !this.initialized) return [];
+    try {
+      const stmt = this.db.prepare(`
+        SELECT t.name, COUNT(vt.video_id) as usage
+        FROM tags t
+        LEFT JOIN video_tags vt ON vt.tag_id = t.id
+        GROUP BY t.id
+        ORDER BY usage DESC, t.name COLLATE NOCASE
+      `);
+      return stmt.all();
+    } catch (error) {
+      console.error('Error listing all tags:', error);
+      return [];
+    }
+  }
+
+  searchVideosByTag(query, limit = 100) {
+    if (!this.db || !this.initialized) return [];
+    try {
+      const q = `%${query}%`;
+      const stmt = this.db.prepare(`
+        SELECT v.id, v.name, v.path, v.folder, v.last_modified
+        FROM videos v
+        JOIN video_tags vt ON vt.video_id = v.id
+        JOIN tags t ON t.id = vt.tag_id
+        WHERE t.name LIKE ?
+        ORDER BY v.last_modified DESC
+        LIMIT ?
+      `);
+      return stmt.all(q, limit);
+    } catch (error) {
+      console.error('Error searching videos by tag:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Backup/export current favorites, hidden, ratings, and tags keyed by path
+   */
+  exportBackup() {
+    if (!this.db || !this.initialized) return { version: 1, exportedAt: new Date().toISOString(), items: [] };
+    try {
+      const rows = this.db.prepare(`
+        SELECT v.id, v.path,
+               CASE WHEN f.video_id IS NOT NULL THEN 1 ELSE 0 END AS is_favorite,
+               CASE WHEN h.video_id IS NOT NULL THEN 1 ELSE 0 END AS is_hidden,
+               r.rating
+        FROM videos v
+        LEFT JOIN favorites f ON f.video_id = v.id
+        LEFT JOIN hidden_files h ON h.video_id = v.id
+        LEFT JOIN ratings r ON r.video_id = v.id
+      `).all();
+
+      const tagRows = this.db.prepare(`
+        SELECT vt.video_id, t.name AS tag
+        FROM video_tags vt
+        JOIN tags t ON t.id = vt.tag_id
+      `).all();
+
+      const tagsByVideo = new Map();
+      for (const tr of tagRows) {
+        if (!tagsByVideo.has(tr.video_id)) tagsByVideo.set(tr.video_id, []);
+        tagsByVideo.get(tr.video_id).push(tr.tag);
+      }
+
+      const items = rows.map(r => ({
+        path: r.path,
+        favorite: Boolean(r.is_favorite),
+        hidden: Boolean(r.is_hidden),
+        rating: r.rating ?? 0,
+        tags: tagsByVideo.get(r.id) || []
+      }));
+
+      return { version: 1, exportedAt: new Date().toISOString(), items };
+    } catch (error) {
+      console.error('Error exporting backup:', error);
+      return { version: 1, exportedAt: new Date().toISOString(), items: [] };
+    }
+  }
+
+  /**
+   * Import backup JSON (object or string). Merges into DB.
+   */
+  importBackup(backup) {
+    if (!this.db || !this.initialized) return { imported: 0, skipped: 0, errors: 0 };
+    try {
+      const data = typeof backup === 'string' ? JSON.parse(backup) : backup;
+      const items = Array.isArray(data) ? data : (data?.items || []);
+
+      const tx = this.db.transaction((items) => {
+        let imported = 0, skipped = 0, errors = 0;
+        const findStmt = this.db.prepare('SELECT id FROM videos WHERE path = ?');
+        const insFav = this.db.prepare('INSERT OR IGNORE INTO favorites (video_id) VALUES (?)');
+        const delFav = this.db.prepare('DELETE FROM favorites WHERE video_id = ?');
+        const insHid = this.db.prepare('INSERT OR IGNORE INTO hidden_files (video_id) VALUES (?)');
+        const delHid = this.db.prepare('DELETE FROM hidden_files WHERE video_id = ?');
+        const setRating = this.db.prepare('INSERT OR REPLACE INTO ratings (video_id, rating, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)');
+        const delRating = this.db.prepare('DELETE FROM ratings WHERE video_id = ?');
+
+        for (const item of items) {
+          try {
+            if (!item || !item.path) { skipped++; continue; }
+            const row = findStmt.get(item.path);
+            if (!row) { skipped++; continue; }
+            const vid = row.id;
+
+            // favorites
+            if (item.favorite) insFav.run(vid); else delFav.run(vid);
+
+            // hidden
+            if (item.hidden) insHid.run(vid); else delHid.run(vid);
+
+            // rating
+            if (typeof item.rating === 'number' && item.rating >= 1 && item.rating <= 5) {
+              setRating.run(vid, item.rating);
+            } else {
+              delRating.run(vid);
+            }
+
+            // tags
+            if (Array.isArray(item.tags)) {
+              for (const t of item.tags) {
+                if (t && String(t).trim().length > 0) {
+                  this.addTagToVideo(vid, String(t));
+                }
+              }
+            }
+
+            imported++;
+          } catch (e) {
+            console.error('Error importing item:', e);
+            errors++;
+          }
+        }
+
+        return { imported, skipped, errors };
+      });
+
+      const result = tx(items);
+      // Invalidate caches
+      this.queryCache.invalidate('getVideos');
+      return result;
+    } catch (error) {
+      console.error('Error importing backup:', error);
+      return { imported: 0, skipped: 0, errors: 1 };
+    }
   }
 
   /**

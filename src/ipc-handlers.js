@@ -1,4 +1,4 @@
-const { ipcMain, shell } = require('electron');
+const { ipcMain, shell, dialog } = require('electron');
 const VideoScanner = require('./video-scanner');
 const VideoDatabase = require('./database');
 const ThumbnailGenerator = require('./thumbnail-gen');
@@ -74,6 +74,19 @@ class IPCHandlers {
     ipcMain.handle('save-last-folder', this.handleSaveLastFolder.bind(this));
     ipcMain.handle('get-user-preferences', this.handleGetUserPreferences.bind(this));
     ipcMain.handle('save-user-preferences', this.handleSaveUserPreferences.bind(this));
+
+    // Tagging handlers
+    ipcMain.handle('tags-add', this.handleTagsAdd.bind(this));
+    ipcMain.handle('tags-remove', this.handleTagsRemove.bind(this));
+    ipcMain.handle('tags-list', this.handleTagsList.bind(this));
+    ipcMain.handle('tags-all', this.handleTagsAll.bind(this));
+    ipcMain.handle('tags-search', this.handleTagsSearch.bind(this));
+
+    // Backup/Restore handlers
+    ipcMain.handle('backup-export', this.handleBackupExport.bind(this));
+    ipcMain.handle('backup-import', this.handleBackupImport.bind(this));
+    ipcMain.handle('backup-export-file', this.handleBackupExportFile.bind(this));
+    ipcMain.handle('backup-import-file', this.handleBackupImportFile.bind(this));
   }
 
   /**
@@ -326,6 +339,116 @@ class IPCHandlers {
         totalFolders: 0,
         totalSize: 0
       };
+    }
+  }
+
+  /** Tagging handlers */
+  async handleTagsAdd(event, videoId, tagName) {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      return this.database.addTagToVideo(videoId, tagName);
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      return false;
+    }
+  }
+
+  async handleTagsRemove(event, videoId, tagName) {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      return this.database.removeTagFromVideo(videoId, tagName);
+    } catch (error) {
+      console.error('Error removing tag:', error);
+      return false;
+    }
+  }
+
+  async handleTagsList(event, videoId) {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      return this.database.listTagsForVideo(videoId);
+    } catch (error) {
+      console.error('Error listing tags:', error);
+      return [];
+    }
+  }
+
+  async handleTagsAll() {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      return this.database.listAllTags();
+    } catch (error) {
+      console.error('Error listing all tags:', error);
+      return [];
+    }
+  }
+
+  async handleTagsSearch(event, query) {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      return this.database.searchVideosByTag(query || '', 200);
+    } catch (error) {
+      console.error('Error searching tags:', error);
+      return [];
+    }
+  }
+
+  /** Backup/Restore handlers */
+  async handleBackupExport(event, options = {}) {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      const data = this.database.exportBackup();
+      return data;
+    } catch (error) {
+      console.error('Error exporting backup:', error);
+      return { version: 1, exportedAt: new Date().toISOString(), items: [] };
+    }
+  }
+
+  async handleBackupImport(event, payload) {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      return this.database.importBackup(payload);
+    } catch (error) {
+      console.error('Error importing backup:', error);
+      return { imported: 0, skipped: 0, errors: 1 };
+    }
+  }
+
+  async handleBackupExportFile() {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      const data = this.database.exportBackup();
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: 'Export VDOTapes Backup',
+        defaultPath: `vdotapes-backup-${new Date().toISOString().slice(0,10)}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      if (canceled || !filePath) return { success: false, error: 'canceled' };
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+      return { success: true, path: filePath, count: data.items.length };
+    } catch (error) {
+      console.error('Error exporting backup to file:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async handleBackupImportFile() {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Import VDOTapes Backup',
+        properties: ['openFile'],
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      if (canceled || !filePaths || filePaths.length === 0) return { success: false, error: 'canceled' };
+      const filePath = filePaths[0];
+      const content = await fs.readFile(filePath, 'utf8');
+      const result = this.database.importBackup(content);
+      return { success: true, path: filePath, ...result };
+    } catch (error) {
+      console.error('Error importing backup from file:', error);
+      return { success: false, error: error.message };
     }
   }
 

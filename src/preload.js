@@ -45,6 +45,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveLastFolder: (folderPath) => ipcRenderer.invoke('save-last-folder', folderPath),
   getUserPreferences: () => ipcRenderer.invoke('get-user-preferences'),
   saveUserPreferences: (preferences) => ipcRenderer.invoke('save-user-preferences', preferences),
+
+  // Tags
+  addTag: (videoId, tagName) => ipcRenderer.invoke('tags-add', videoId, tagName),
+  removeTag: (videoId, tagName) => ipcRenderer.invoke('tags-remove', videoId, tagName),
+  listTags: (videoId) => ipcRenderer.invoke('tags-list', videoId),
+  listAllTags: () => ipcRenderer.invoke('tags-all'),
+  searchByTag: (query) => ipcRenderer.invoke('tags-search', query),
+
+  // Backup
+  exportBackup: (options) => ipcRenderer.invoke('backup-export', options),
+  importBackup: (backup) => ipcRenderer.invoke('backup-import', backup),
+  exportBackupToFile: () => ipcRenderer.invoke('backup-export-file'),
+  importBackupFromFile: () => ipcRenderer.invoke('backup-import-file'),
   
   // Progress and status
   onScanProgress: (callback) => {

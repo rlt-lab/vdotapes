@@ -30,7 +30,7 @@ body {
 }
 
 .brand-title {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: bold;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     -webkit-background-clip: text;
@@ -69,6 +69,61 @@ body {
 .filter-controls.visible {
     display: flex;
 }
+
+/* Uniform header control sizing */
+.header .sort-btn, .header .shuffle-btn, .header .favorites-btn, .header .hidden-btn, .header .backup-btn, .header .grid-btn {
+    height: 40px;
+}
+.header .backup-btn, .header .grid-btn {
+    display:flex; align-items:center; gap:0.4rem; padding:0 10px;
+}
+.header .filter-group select { height: 40px; }
+
+/* Grid button + count */
+.grid-control { display:flex; align-items:center; gap:0.4rem; }
+.grid-btn {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 6px;
+    color: #ccc;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.grid-btn:hover { background:#444; border-color:#667eea; color:#fff; transform: scale(1.05); }
+.grid-count { font-size: 0.8rem; font-weight: 600; min-width: 20px; text-align:center; background:#555; border-radius:50%; padding:0.2rem 0.4rem; }
+
+/* Backup dropdown – match height */
+.backup-btn { height: 40px; }
+.backup-menu { top: 46px; }
+
+/* Backup dropdown */
+.backup-dropdown { position: relative; }
+.backup-btn {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+.backup-btn:hover { background:#444; border-color:#667eea; color:#fff; }
+.backup-btn .icon { width: 18px; height: 18px; fill: currentColor; }
+.backup-menu {
+    position:absolute; top:46px; right:0;
+    background:#111; border:1px solid #333; border-radius:8px; padding:6px;
+    display:none; z-index:1001; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+.backup-menu.open { display:block; }
+.backup-menu button {
+    display:block; width:100%; text-align:left;
+    background:#222; border:1px solid #333; color:#ddd;
+    border-radius:6px; padding:6px 10px; margin:2px 0; cursor:pointer;
+}
+.backup-menu button:hover { background:#333; border-color:#667eea; }
 
 .filter-group {
     display: flex;
@@ -138,9 +193,12 @@ body {
     font-weight: 600;
     min-width: 20px;
     text-align: center;
+    background: #555;
+    border-radius: 50%;
+    padding: 0.2rem 0.4rem;
 }
 
-.sort-btn {
+.header-btn, .sort-btn, .shuffle-btn {
     background: #333;
     border: 1px solid #555;
     border-radius: 6px;
@@ -155,12 +213,21 @@ body {
     height: 40px;
 }
 
-.sort-btn:hover {
+.header-btn:hover, .sort-btn:hover, .shuffle-btn:hover {
     background: #444;
     border-color: #667eea;
     color: #fff;
     transform: scale(1.05);
 }
+
+/* Grid dropdown */
+.grid-dropdown { position: relative; }
+.grid-btn { position: relative; }
+.grid-btn .badge { position:absolute; bottom:-6px; right:-6px; background:#667eea; color:#fff; border-radius:10px; font-size:10px; padding:2px 5px; line-height:1; }
+.grid-menu { position:absolute; top:46px; right:0; background:#111; border:1px solid #333; border-radius:8px; padding:6px; display:none; z-index:1001; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+.grid-menu.open { display:flex; flex-wrap: wrap; gap:6px; width: 180px; }
+.grid-menu button { background:#222; border:1px solid #333; color:#ddd; border-radius:6px; padding:6px 8px; cursor:pointer; width: 36px; text-align:center; }
+.grid-menu button:hover { background:#333; border-color:#667eea; }
 
 .sort-btn.active {
     background: #667eea;
@@ -315,23 +382,26 @@ body {
 .container {
     width: 100%;
     margin: 0 auto;
-    padding: 1rem;
+    padding: 0.5rem 1rem 1rem; /* reduce top padding under header */
 }
 
 .video-grid {
     display: grid;
     grid-template-columns: repeat(var(--grid-cols, 4), 1fr);
     gap: 1px;
-    margin-top: 1rem;
+    margin-top: 0.25rem; /* tighter gap below UI bar */
     padding: 0;
 }
+
+/* Lightweight filtering without re-rendering */
+.video-item.is-hidden-by-filter { display: none !important; }
 
 /* Virtual Grid Styles */
 .virtual-grid-container {
     width: 100%;
-    height: calc(100vh - 200px); /* Adjust based on header height */
+    height: calc(100vh - 150px); /* reduced to match smaller header */
     overflow: auto;
-    margin-top: 1rem;
+    margin-top: 0.25rem; /* tighter gap below UI bar */
 }
 
 .virtual-spacer-top,
@@ -342,7 +412,7 @@ body {
 
 /* Virtualized Grid Container */
 #virtualized-grid-container {
-    margin-top: 1rem;
+    margin-top: 0.25rem; /* tighter gap below UI bar */
 }
 
 /* Virtual grid uses the same styles as regular grid */
@@ -510,6 +580,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 32px;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -521,14 +592,59 @@ body {
 }
 
 .expanded-video {
-    max-width: 90vw;
+    max-width: 70vw;
     max-height: 100vh;
     width: auto;
-    height: 100vh;
-    object-fit: contain;
+    height: 100vh; /* fill from top to bottom */
+    object-fit: contain; /* preserve aspect ratio without cropping */
     cursor: pointer;
     box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
 }
+
+/* Expanded sidebar */
+.expanded-sidebar {
+    width: 360px;
+    max-height: 100vh; /* align with full window height */
+    overflow-y: auto;
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 20px;
+    color: #ddd;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+}
+.sidebar-section { margin-bottom: 18px; }
+.sidebar-section + .sidebar-section { border-top: 1px solid #222; padding-top: 16px; margin-top: 16px; }
+.sidebar-toolbar { display:flex; gap:10px; flex-wrap: wrap; }
+.sidebar-btn {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 0.6rem 0.9rem;
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+    font-weight: 600;
+}
+.icon-btn { width: 44px; height: 44px; justify-content: center; padding: 0; }
+.sidebar-btn:hover { background:#444; border-color:#667eea; color:#fff; }
+.sidebar-btn .icon { width: 20px; height: 20px; fill: currentColor; }
+.sidebar-btn.active.heart { background:#e74c3c; border-color:#e74c3c; color:#fff; }
+.sidebar-btn.active.eye { background:#667eea; border-color:#667eea; color:#fff; }
+.sidebar-btn.folder:hover { border-color:#8bc34a; }
+.section-title { display:block; font-size: 0.8rem; color:#999; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom:8px; }
+.tag-list { display:flex; flex-wrap: wrap; gap:8px; margin-bottom:10px; }
+.tag-chip {
+    background:#2b2b2b; color:#e0e0e0; border-radius:14px; padding:6px 10px; font-size:0.85rem;
+}
+.tag-chip button { margin-left:8px; background:none; border:none; color:#aaa; cursor:pointer; }
+#tagInput { width:100%; padding:10px 12px; border:1px solid #2a2a2a; background:#0f0f0f; color:#e0e0e0; border-radius:9999px; font-size:0.95rem; }
+.meta-row { display:flex; justify-content: space-between; font-size:0.95rem; margin:6px 0; }
+.meta-key { color:#aaa; }
+.meta-val { color:#e0e0e0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 
 .close-btn {
@@ -764,3 +880,4 @@ input:focus {
 .context-menu-item:hover .context-menu-icon {
     fill: #667eea;
 }
+/* grid button reverted to number input */

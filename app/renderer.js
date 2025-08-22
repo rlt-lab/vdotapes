@@ -61,6 +61,11 @@ class VdoTapesApp {
             this.saveSettings();
         });
     }
+
+    get currentExpandedVideo() {
+        if (this.currentExpandedIndex < 0) return null;
+        return this.displayedVideos[this.currentExpandedIndex] || null;
+    }
     
     async loadSettings() {
         try {
@@ -77,8 +82,12 @@ class VdoTapesApp {
                 this.currentFolder = preferences.folderFilter || '';
                 
                 // Update UI to reflect loaded settings
-                document.getElementById('gridCols').value = this.gridCols;
-                document.getElementById('folderSelect').value = this.currentFolder;
+                const gridInput = document.getElementById('gridCols');
+                if (gridInput) gridInput.value = this.gridCols;
+                const gridCount = document.getElementById('gridColsCount');
+                if (gridCount) gridCount.textContent = String(this.gridCols);
+                const folderSel = document.getElementById('folderSelect');
+                if (folderSel) folderSel.value = this.currentFolder;
                 this.updateSortButtonStates();
                 
                 if (this.showingFavoritesOnly) {
@@ -178,20 +187,85 @@ class VdoTapesApp {
             this.toggleFavoritesView();
         });
         
-        // Multi-view toggle
-        document.getElementById('multiViewBtn').addEventListener('click', () => {
-            this.toggleMultiView();
-        });
+        // Multi-view toggle (button may be absent)
+        const multiBtn = document.getElementById('multiViewBtn');
+        if (multiBtn) {
+            multiBtn.addEventListener('click', () => this.toggleMultiView());
+        }
         
         // Hidden files toggle
         document.getElementById('hiddenBtn').addEventListener('click', () => {
             this.toggleHiddenView();
         });
+
+        // Backup dropdown
+        const backupBtn = document.getElementById('backupBtn');
+        const backupMenu = document.getElementById('backupMenu');
+        const backupExport = document.getElementById('backupExport');
+        const backupImport = document.getElementById('backupImport');
+        if (backupBtn && backupMenu) {
+            backupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                backupMenu.classList.toggle('open');
+            });
+            document.addEventListener('click', () => backupMenu.classList.remove('open'));
+        }
+        if (backupExport) {
+            backupExport.addEventListener('click', async () => {
+                try {
+                    backupMenu?.classList.remove('open');
+                    const res = await window.electronAPI.exportBackupToFile();
+                    if (res?.success) {
+                        this.showStatus(`Exported ${res.count} items → ${res.path}`);
+                    } else if (res?.error !== 'canceled') {
+                        this.showStatus('Backup export failed');
+                        console.error('Export error:', res?.error);
+                    }
+                } catch (e) {
+                    console.error('Export failed:', e);
+                }
+            });
+        }
+        if (backupImport) {
+            backupImport.addEventListener('click', async () => {
+                try {
+                    backupMenu?.classList.remove('open');
+                    const res = await window.electronAPI.importBackupFromFile();
+                    if (res?.success) {
+                        this.showStatus(`Imported: ${res.imported}, skipped: ${res.skipped}`);
+                        await this.refreshFavoritesFromDatabase();
+                        const hidden = await window.electronAPI.getHiddenFiles();
+                        if (hidden && Array.isArray(hidden)) {
+                            this.hiddenFiles = new Set(hidden);
+                            this.updateHiddenCount();
+                        }
+                    } else if (res?.error !== 'canceled') {
+                        this.showStatus('Backup import failed');
+                        console.error('Import error:', res?.error);
+                    }
+                } catch (e) {
+                    console.error('Import failed:', e);
+                }
+            });
+        }
         
         // Grid size
-        document.getElementById('gridCols').addEventListener('input', () => {
-            this.updateGridSize();
-        });
+        // Grid columns button (click to increase, right-click to decrease)
+        const gridBtn = document.getElementById('gridColsBtn');
+        const gridCount = document.getElementById('gridColsCount');
+        if (gridCount) gridCount.textContent = String(this.gridCols);
+        if (gridBtn) {
+            gridBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.setGridCols(this.gridCols >= 12 ? 1 : this.gridCols + 1);
+                if (gridCount) gridCount.textContent = String(this.gridCols);
+            });
+            gridBtn.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.setGridCols(this.gridCols <= 1 ? 12 : this.gridCols - 1);
+                if (gridCount) gridCount.textContent = String(this.gridCols);
+            });
+        }
         
         // Expanded view
         document.getElementById('closeBtn').addEventListener('click', () => {
@@ -385,7 +459,7 @@ class VdoTapesApp {
     
     filterByFolder(folderName) {
         this.currentFolder = folderName;
-        this.applyCurrentFilters();
+        this.applyFiltersInPlace();
         this.updateStatusMessage();
         this.saveSettings();
     }
@@ -393,9 +467,8 @@ class VdoTapesApp {
     setSortMode(sortMode) {
         this.currentSort = sortMode;
         this.updateSortButtonStates();
-        
-        
-        this.applyCurrentFilters();
+        // Reorder visible items in place to avoid re-render
+        this.reorderGridInPlace();
         this.updateStatusMessage();
         this.saveSettings();
     }
@@ -404,6 +477,32 @@ class VdoTapesApp {
         document.getElementById('sortFolderBtn').classList.toggle('active', this.currentSort === 'folder');
         document.getElementById('sortDateBtn').classList.toggle('active', this.currentSort === 'date');
         document.getElementById('shuffleBtn').classList.toggle('active', this.currentSort === 'shuffle');
+    }
+
+    reorderGridInPlace() {
+        const container = document.querySelector('.video-grid');
+        if (!container) { this.renderGrid(); return; }
+        const items = Array.from(container.children);
+        if (items.length === 0) return;
+        const mode = this.currentSort;
+        items.sort((a, b) => {
+            const fa = (a.dataset.folder || '').toLowerCase();
+            const fb = (b.dataset.folder || '').toLowerCase();
+            const da = parseInt(a.dataset.lastModified || '0', 10);
+            const db = parseInt(b.dataset.lastModified || '0', 10);
+            if (mode === 'folder') {
+                const fc = fa.localeCompare(fb);
+                if (fc !== 0) return fc;
+                return db - da; // newer first
+            } else if (mode === 'date') {
+                return db - da; // newer first
+            }
+            return 0;
+        });
+        const frag = document.createDocumentFragment();
+        items.forEach(el => frag.appendChild(el));
+        container.appendChild(frag);
+        this.refreshVisibleVideos();
     }
 
     async shuffleVideos() {
@@ -450,7 +549,8 @@ class VdoTapesApp {
         const btn = document.getElementById('favoritesBtn');
         btn.classList.toggle('active', this.showingFavoritesOnly);
         
-        this.applyCurrentFilters();
+        this.applyFiltersInPlace();
+        this.refreshVisibleVideos();
         this.updateStatusMessage();
         this.saveSettings();
     }
@@ -598,7 +698,7 @@ class VdoTapesApp {
         // Use the isFavorite property from the database result
         const isFavorited = video.isFavorite === true;
         return `
-            <div class="video-item" data-index="${index}" data-video-id="${video.id}" title="${video.name}">
+            <div class="video-item" data-index="${index}" data-video-id="${video.id}" data-folder="${video.folder || ''}" data-last-modified="${video.lastModified || 0}" title="${video.name}">
                 <video 
                     data-src="${video.path}"
                     data-duration=""
@@ -822,8 +922,11 @@ class VdoTapesApp {
         expandedVideo.currentTime = 0;
         expandedVideo.muted = false;
         overlay.classList.add('active');
-        
+
         expandedVideo.play().catch(() => {});
+
+        // Populate sidebar
+        this.refreshExpandedSidebar(video);
     }
     
     closeExpanded() {
@@ -834,6 +937,12 @@ class VdoTapesApp {
         video.pause();
         video.src = '';
         this.currentExpandedIndex = -1;
+        // Clear sidebar
+        this.renderTagList([]);
+        const tf = document.getElementById('tagInput'); if (tf) tf.value = '';
+        const metaFolder = document.getElementById('metaFolder'); if (metaFolder) metaFolder.textContent = '';
+        const metaLength = document.getElementById('metaLength'); if (metaLength) metaLength.textContent = '';
+        const metaFilename = document.getElementById('metaFilename'); if (metaFilename) metaFilename.textContent = '';
     }
     
     navigateExpanded(direction) {
@@ -880,15 +989,27 @@ class VdoTapesApp {
                 
                 this.updateFavoritesCount();
                 
-                // Refresh favorites from database to ensure consistency
-                await this.refreshFavoritesFromDatabase();
-                
-                // Update the displayed videos to reflect the change
-                this.applyCurrentFilters();
+                // Lightweight UI updates to avoid grid rebuild
+                // Update favorite icon on the item
+                const el = document.querySelector(`.video-item[data-video-id="${videoId}"] .video-favorite`);
+                if (el) el.classList.toggle('favorited', video.isFavorite === true);
+                // If in favorites-only mode and unfavorited, hide just this item
+                if (this.showingFavoritesOnly && !video.isFavorite) {
+                    const itemEl = document.querySelector(`.video-item[data-video-id="${videoId}"]`);
+                    if (itemEl) itemEl.classList.add('is-hidden-by-filter');
+                }
                 
                 // If we're showing favorites only and this video was unfavorited, refresh the view
                 if (this.showingFavoritesOnly && !video.isFavorite) {
                     this.updateStatusMessage();
+                }
+
+                // Refresh sidebar buttons if expanded and showing this video
+                if (this.currentExpandedIndex !== -1) {
+                    const cur = this.currentExpandedVideo;
+                    if (cur && cur.id === videoId) {
+                        this.refreshExpandedSidebar(cur);
+                    }
                 }
                 
             } else {
@@ -931,14 +1052,9 @@ class VdoTapesApp {
     }
     
     updateGridSize() {
-        this.gridCols = parseInt(document.getElementById('gridCols').value);
+        // Only update CSS variable; avoid re-rendering to preserve loaded thumbnails
         this.updateGridLayout();
         this.saveSettings();
-        
-        // No special handling needed for smart loader - just re-render
-        if (this.displayedVideos.length > 0) {
-            this.renderGrid();
-        }
     }
     
     updateGridLayout() {
@@ -947,12 +1063,16 @@ class VdoTapesApp {
     
     handleResize() {
         const newCols = this.getDefaultGridCols();
-        const currentCols = parseInt(document.getElementById('gridCols').value);
-        
-        if (Math.abs(currentCols - newCols) <= 1) {
-            document.getElementById('gridCols').value = newCols;
-            this.updateGridSize();
+        if (Math.abs(this.gridCols - newCols) <= 1) {
+            this.setGridCols(newCols);
         }
+    }
+
+    setGridCols(n) {
+        const clamped = Math.max(1, Math.min(12, parseInt(n, 10) || this.gridCols));
+        if (clamped === this.gridCols) return;
+        this.gridCols = clamped;
+        this.updateGridSize();
     }
     
     // Utility methods
@@ -1098,10 +1218,22 @@ class VdoTapesApp {
             }
         });
         
-        // Hide context menu on escape key
+        // Global keydown for context/overlay
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.hideContextMenu();
+            }
+            const overlay = document.getElementById('expandedOverlay');
+            if (overlay && overlay.classList.contains('active')) {
+                const current = this.currentExpandedVideo;
+                if (!current) return;
+                if (e.key.toLowerCase() === 'f') {
+                    this.toggleFavorite(current.id, e);
+                } else if (e.key.toLowerCase() === 'h') {
+                    this.toggleHiddenFile(current.id, e);
+                } else if (e.key.toLowerCase() === 'o') {
+                    this.openFileLocation(current.path);
+                }
             }
         });
     }
@@ -1128,6 +1260,101 @@ class VdoTapesApp {
         contextMenu.style.left = menuX + 'px';
         contextMenu.style.top = menuY + 'px';
         contextMenu.classList.add('show');
+    }
+
+    async refreshExpandedSidebar(video) {
+        // Buttons
+        const favBtn = document.getElementById('sidebarFavoriteBtn');
+        const hidBtn = document.getElementById('sidebarHiddenBtn');
+        const goBtn = document.getElementById('goToFileBtn');
+        if (favBtn) {
+            const isFav = this.favorites.has(video.id);
+            favBtn.classList.toggle('active', isFav);
+            // icon-only; no label text
+            favBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" class="icon">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+            `;
+            favBtn.onclick = (e) => this.toggleFavorite(video.id, e);
+        }
+        if (hidBtn) {
+            const isHidden = this.hiddenFiles.has(video.id);
+            hidBtn.classList.toggle('active', isHidden);
+            hidBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" class="icon">
+                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                </svg>
+            `;
+            hidBtn.onclick = (e) => this.toggleHiddenFile(video.id, e);
+        }
+        if (goBtn) {
+            goBtn.onclick = () => this.openFileLocation(video.path);
+        }
+
+        // Meta
+        const metaFolder = document.getElementById('metaFolder');
+        const metaLength = document.getElementById('metaLength');
+        const metaFilename = document.getElementById('metaFilename');
+        if (metaFolder) metaFolder.textContent = video.folder || '(none)';
+        if (metaLength) metaLength.textContent = (video.duration ? Math.round(video.duration) + 's' : '—');
+        if (metaFilename) metaFilename.textContent = video.name || '';
+
+        // Tags
+        try {
+            const tags = await window.electronAPI.listTags(video.id);
+            this.renderTagList(tags || []);
+        } catch (err) {
+            console.error('Failed to load tags', err);
+            this.renderTagList([]);
+        }
+
+        // Bind tag input
+        const tagInput = document.getElementById('tagInput');
+        if (tagInput) {
+            tagInput.onkeydown = async (ev) => {
+                if (ev.key === 'Enter') {
+                    const t = tagInput.value.trim();
+                    if (t) {
+                        await window.electronAPI.addTag(video.id, t);
+                        tagInput.value = '';
+                        const tags = await window.electronAPI.listTags(video.id);
+                        this.renderTagList(tags || []);
+                    }
+                } else if (ev.key === 'Backspace' && tagInput.value === '') {
+                    // Remove last tag when input is empty
+                    const current = await window.electronAPI.listTags(video.id);
+                    if (current && current.length > 0) {
+                        const last = current[current.length - 1];
+                        await window.electronAPI.removeTag(video.id, last);
+                        const tags = await window.electronAPI.listTags(video.id);
+                        this.renderTagList(tags || []);
+                    }
+                }
+            };
+        }
+    }
+
+    renderTagList(tags) {
+        const listEl = document.getElementById('tagList');
+        listEl.innerHTML = '';
+        const video = this.currentExpandedVideo;
+        (tags || []).forEach((name) => {
+            const chip = document.createElement('span');
+            chip.className = 'tag-chip';
+            const btn = document.createElement('button');
+            btn.textContent = '×';
+            btn.title = 'Remove tag';
+            btn.onclick = async () => {
+                if (!video) return;
+                await window.electronAPI.removeTag(video.id, name);
+                const t2 = await window.electronAPI.listTags(video.id);
+                this.renderTagList(t2 || []);
+            };
+            chip.textContent = name + ' ';
+            chip.appendChild(btn);
+            listEl.appendChild(chip);
+        });
     }
     
     hideContextMenu() {
@@ -1245,8 +1472,55 @@ class VdoTapesApp {
             hiddenBtn.title = 'Show hidden files only';
         }
         
-        // Refresh the view with the new filter
-        this.applyCurrentFilters();
+        // Lightweight filter update
+        this.applyFiltersInPlace();
+        this.refreshVisibleVideos();
+    }
+
+    refreshVisibleVideos() {
+        try {
+            const items = document.querySelectorAll('.video-item:not(.is-hidden-by-filter)');
+            const viewportH = window.innerHeight;
+            items.forEach(item => {
+                const rect = item.getBoundingClientRect();
+                const inView = rect.top < viewportH + 200 && rect.bottom > -200;
+                if (!inView) return;
+                const video = item.querySelector('video');
+                if (!video) return;
+                if (!video.src) {
+                    this.loadVideo(video, item);
+                } else {
+                    this.resumeVideo(video);
+                }
+            });
+        } catch (e) {
+            console.warn('refreshVisibleVideos error', e);
+        }
+    }
+
+    applyFiltersInPlace() {
+        const container = document.querySelector('.video-grid');
+        if (!container) { this.renderGrid(); return; }
+        const items = Array.from(container.children);
+        items.forEach(item => {
+            const id = item.dataset.videoId;
+            const isFav = this.favorites.has(id);
+            const isHidden = this.hiddenFiles.has(id);
+            const folder = item.dataset.folder || '';
+            let visible = true;
+            if (this.currentFolder) {
+                visible = visible && (folder === this.currentFolder);
+            }
+            if (this.showingFavoritesOnly) {
+                visible = visible && isFav;
+            }
+            if (this.showingHiddenOnly) {
+                visible = visible && isHidden;
+            } else {
+                visible = visible && !isHidden;
+            }
+            item.classList.toggle('is-hidden-by-filter', !visible);
+        });
     }
     
     updateHiddenCount() {
@@ -1283,11 +1557,27 @@ class VdoTapesApp {
                 
                 this.updateHiddenCount();
                 
-                // Refresh the view to hide/show the video
-                this.applyCurrentFilters();
+                // Lightweight: update visibility of just this item based on current mode
+                const itemEl = document.querySelector(`.video-item[data-video-id="${videoId}"]`);
+                if (itemEl) {
+                    if (this.showingHiddenOnly) {
+                        itemEl.classList.toggle('is-hidden-by-filter', isCurrentlyHidden); // if we just un-hid, hide it now
+                    } else {
+                        // Normal mode hides hidden items
+                        itemEl.classList.toggle('is-hidden-by-filter', !isCurrentlyHidden);
+                    }
+                }
                 
                 const action = isCurrentlyHidden ? 'shown' : 'hidden';
                 this.showStatus(`Video "${video.name}" ${action}`);
+
+                // Refresh sidebar buttons if expanded and showing this video
+                if (this.currentExpandedIndex !== -1) {
+                    const cur = this.currentExpandedVideo;
+                    if (cur && cur.id === videoId) {
+                        this.refreshExpandedSidebar(cur);
+                    }
+                }
             } else {
                 console.error('Failed to toggle hidden status');
             }
