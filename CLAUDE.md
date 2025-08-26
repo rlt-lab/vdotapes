@@ -90,3 +90,23 @@ When implementing new features:
 2. Update database schema if needed (see migration examples in database.js)
 3. Maintain security model - no direct file system access from renderer
 4. Test on both macOS and Windows platforms
+
+## UI Design and Visual Reference
+
+This project has Playwright MCP server configured for visual testing and UI design work. When working on UI changes:
+
+### Taking Screenshots for Reference
+Use the Playwright MCP server to capture current UI state before making changes:
+
+1. **Launch the app**: Run `npm run dev` to start the application
+2. **Take screenshots**: Use Playwright MCP tools to navigate and capture screenshots
+3. **Document changes**: Screenshots help compare before/after states during UI development
+
+### Common UI Testing Scenarios
+- Grid layout responsiveness (1-12 columns)
+- Video preview functionality 
+- Toolbar and control interactions
+- Filter and sort UI elements
+- Favorites and tagging interfaces
+
+Screenshots should be taken at different viewport sizes and with various video collections loaded to ensure consistent UI behavior across different usage scenarios.

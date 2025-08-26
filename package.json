@@ -47,6 +47,7 @@
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
+    "@playwright/test": "^1.55.0",
     "better-sqlite3": "^12.2.0"
   }
 }
