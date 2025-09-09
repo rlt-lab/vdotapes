@@ -10,17 +10,17 @@ class VirtualizedVideoGrid {
     this.itemsPerRow = options.itemsPerRow || 4;
     this.buffer = options.buffer || 2; // Rows to render outside viewport
     this.maxPoolSize = options.maxPoolSize || 50;
-    
+
     this.allVideos = [];
     this.visibleVideos = [];
     this.scrollTop = 0;
     this.viewportHeight = container.clientHeight;
     this.totalHeight = 0;
-    
+
     // Element pooling for performance
     this.elementPool = new VideoElementPool(this.maxPoolSize);
     this.activeElements = new Map(); // videoId -> element
-    
+
     // Create virtual container structure
     this.setupVirtualContainer();
     this.setupScrollHandling();
@@ -31,23 +31,23 @@ class VirtualizedVideoGrid {
     this.container.innerHTML = '';
     this.container.style.position = 'relative';
     this.container.style.overflow = 'auto';
-    
+
     // Spacer for total height (enables scrolling)
     this.topSpacer = document.createElement('div');
     this.topSpacer.className = 'virtual-spacer-top';
     this.topSpacer.style.height = '0px';
-    
+
     this.bottomSpacer = document.createElement('div');
     this.bottomSpacer.className = 'virtual-spacer-bottom';
     this.bottomSpacer.style.height = '0px';
-    
+
     // Visible content container
     this.visibleContainer = document.createElement('div');
     this.visibleContainer.className = 'virtual-visible-container';
     this.visibleContainer.style.display = 'grid';
     this.visibleContainer.style.gridTemplateColumns = `repeat(${this.itemsPerRow}, 1fr)`;
     this.visibleContainer.style.gap = '2px';
-    
+
     this.container.appendChild(this.topSpacer);
     this.container.appendChild(this.visibleContainer);
     this.container.appendChild(this.bottomSpacer);
@@ -55,10 +55,10 @@ class VirtualizedVideoGrid {
 
   setupScrollHandling() {
     let scrollTimeout;
-    
+
     this.container.addEventListener('scroll', () => {
       this.scrollTop = this.container.scrollTop;
-      
+
       // Throttle scroll updates
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
@@ -111,7 +111,7 @@ class VirtualizedVideoGrid {
 
     const startRow = Math.floor(this.scrollTop / this.itemHeight);
     const endRow = Math.ceil((this.scrollTop + this.viewportHeight) / this.itemHeight);
-    
+
     // Add buffer
     const bufferedStartRow = Math.max(0, startRow - this.buffer);
     const bufferedEndRow = Math.min(
@@ -123,52 +123,52 @@ class VirtualizedVideoGrid {
       start: bufferedStartRow * this.itemsPerRow,
       end: Math.min(this.allVideos.length, bufferedEndRow * this.itemsPerRow),
       startRow: bufferedStartRow,
-      endRow: bufferedEndRow
+      endRow: bufferedEndRow,
     };
   }
 
   updateVisibleRange() {
     const range = this.getVisibleRange();
     const newVisibleVideos = this.allVideos.slice(range.start, range.end);
-    
+
     // Update spacers
     this.topSpacer.style.height = `${range.startRow * this.itemHeight}px`;
-    this.bottomSpacer.style.height = `${Math.max(0, this.totalHeight - (range.endRow * this.itemHeight))}px`;
-    
+    this.bottomSpacer.style.height = `${Math.max(0, this.totalHeight - range.endRow * this.itemHeight)}px`;
+
     // Update visible videos
     this.renderVisibleVideos(newVisibleVideos, range.start);
   }
 
   renderVisibleVideos(videos, startIndex) {
     // Get currently visible video IDs
-    const currentIds = new Set(this.visibleVideos.map(v => v.id));
-    const newIds = new Set(videos.map(v => v.id));
-    
+    const currentIds = new Set(this.visibleVideos.map((v) => v.id));
+    const newIds = new Set(videos.map((v) => v.id));
+
     // Remove videos that are no longer visible
-    this.visibleVideos.forEach(video => {
+    this.visibleVideos.forEach((video) => {
       if (!newIds.has(video.id)) {
         this.recycleVideoElement(video.id);
       }
     });
-    
+
     // Clear container
     this.visibleContainer.innerHTML = '';
-    
+
     // Add new visible videos
     videos.forEach((video, index) => {
       const element = this.getVideoElement(video, startIndex + index);
       this.visibleContainer.appendChild(element);
     });
-    
+
     this.visibleVideos = videos;
-    
+
     // Notify about visible range change
     this.onVisibleRangeChanged?.(this.visibleVideos, startIndex);
   }
 
   getVideoElement(video, globalIndex) {
     let element = this.activeElements.get(video.id);
-    
+
     if (!element) {
       element = this.elementPool.getElement();
       this.setupVideoElement(element, video, globalIndex);
@@ -177,7 +177,7 @@ class VirtualizedVideoGrid {
       // Update existing element
       this.updateVideoElement(element, video, globalIndex);
     }
-    
+
     return element;
   }
 
@@ -185,9 +185,9 @@ class VirtualizedVideoGrid {
     element.className = 'video-item virtual-video-item';
     element.dataset.videoId = video.id;
     element.dataset.index = index;
-    
+
     const isFavorited = this.isFavorite?.(video.id) || false;
-    
+
     element.innerHTML = `
       <video 
         data-src="${video.path || video.url}"
@@ -211,23 +211,23 @@ class VirtualizedVideoGrid {
         </div>
       </div>
     `;
-    
+
     // Add click handler for expansion
     element.addEventListener('click', () => {
       this.onVideoClick?.(video, index);
     });
-    
+
     return element;
   }
 
   updateVideoElement(element, video, index) {
     element.dataset.index = index;
-    
+
     // Update favorite status
     const favoriteBtn = element.querySelector('.video-favorite');
     const isFavorited = this.isFavorite?.(video.id) || false;
     favoriteBtn.classList.toggle('favorited', isFavorited);
-    
+
     // Update video source if needed
     const videoEl = element.querySelector('video');
     const videoSrc = video.path || video.url;
@@ -249,44 +249,44 @@ class VirtualizedVideoGrid {
   }
 
   scrollToVideo(videoId) {
-    const index = this.allVideos.findIndex(v => v.id === videoId);
+    const index = this.allVideos.findIndex((v) => v.id === videoId);
     if (index === -1) return;
-    
+
     const row = Math.floor(index / this.itemsPerRow);
     const scrollTop = row * this.itemHeight;
-    
+
     this.container.scrollTo({
       top: scrollTop,
-      behavior: 'smooth'
+      behavior: 'smooth',
     });
   }
 
   scrollToIndex(index) {
     if (index < 0 || index >= this.allVideos.length) return;
-    
+
     const row = Math.floor(index / this.itemsPerRow);
     const scrollTop = row * this.itemHeight;
-    
+
     this.container.scrollTo({
       top: scrollTop,
-      behavior: 'smooth'
+      behavior: 'smooth',
     });
   }
 
   getVisibleVideoIds() {
-    return this.visibleVideos.map(v => v.id);
+    return this.visibleVideos.map((v) => v.id);
   }
 
   destroy() {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
-    
+
     // Return all elements to pool
-    this.activeElements.forEach(element => {
+    this.activeElements.forEach((element) => {
       this.elementPool.returnElement(element);
     });
-    
+
     this.activeElements.clear();
     this.elementPool.destroy();
   }
@@ -311,7 +311,7 @@ class VideoElementPool {
     if (this.pool.length > 0) {
       return this.pool.pop();
     }
-    
+
     this.created++;
     return this.createElement();
   }
@@ -322,7 +322,7 @@ class VideoElementPool {
       this.cleanupElement(element);
       return;
     }
-    
+
     this.resetElement(element);
     this.pool.push(element);
   }
@@ -336,7 +336,7 @@ class VideoElementPool {
     element.style.overflow = 'hidden';
     element.style.cursor = 'pointer';
     element.style.transition = 'transform 0.2s ease, filter 0.2s ease';
-    
+
     return element;
   }
 
@@ -347,20 +347,20 @@ class VideoElementPool {
       video.pause();
       video.src = '';
       video.load();
-      
+
       // Remove event listeners
       const newVideo = video.cloneNode(true);
       video.parentNode.replaceChild(newVideo, video);
     }
-    
+
     // Remove click handlers
     const newElement = element.cloneNode(true);
     element.parentNode?.replaceChild(newElement, element);
-    
+
     // Clear any custom properties
     delete element.dataset.videoId;
     delete element.dataset.index;
-    
+
     return newElement;
   }
 
@@ -370,7 +370,7 @@ class VideoElementPool {
   }
 
   destroy() {
-    this.pool.forEach(element => this.cleanupElement(element));
+    this.pool.forEach((element) => this.cleanupElement(element));
     this.pool = [];
   }
 
@@ -379,7 +379,7 @@ class VideoElementPool {
       poolSize: this.pool.length,
       maxSize: this.maxSize,
       created: this.created,
-      inUse: this.created - this.pool.length
+      inUse: this.created - this.pool.length,
     };
   }
 }

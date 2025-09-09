@@ -4,7 +4,8 @@
  */
 
 class QueryCache {
-  constructor(maxSize = 100, ttl = 300000) { // 5 minutes TTL
+  constructor(maxSize = 100, ttl = 300000) {
+    // 5 minutes TTL
     this.cache = new Map();
     this.maxSize = maxSize;
     this.ttl = ttl;
@@ -22,12 +23,12 @@ class QueryCache {
   get(query, params) {
     const key = this.generateKey(query, params);
     const cached = this.cache.get(key);
-    
+
     if (!cached) {
       this.missCount++;
       return null;
     }
-    
+
     // Check TTL
     if (Date.now() - cached.timestamp > this.ttl) {
       this.cache.delete(key);
@@ -35,7 +36,7 @@ class QueryCache {
       this.missCount++;
       return null;
     }
-    
+
     // Update access time for LRU
     this.accessTimes.set(key, Date.now());
     this.hitCount++;
@@ -44,15 +45,15 @@ class QueryCache {
 
   set(query, params, data) {
     const key = this.generateKey(query, params);
-    
+
     // Implement LRU eviction if cache is full
     if (this.cache.size >= this.maxSize) {
       this.evictLRU();
     }
-    
+
     this.cache.set(key, {
       data: this.deepClone(data),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     this.accessTimes.set(key, Date.now());
   }
@@ -60,14 +61,14 @@ class QueryCache {
   evictLRU() {
     let oldestKey = null;
     let oldestTime = Date.now();
-    
+
     for (const [key, time] of this.accessTimes) {
       if (time < oldestTime) {
         oldestTime = time;
         oldestKey = key;
       }
     }
-    
+
     if (oldestKey) {
       this.cache.delete(oldestKey);
       this.accessTimes.delete(oldestKey);
@@ -77,18 +78,18 @@ class QueryCache {
   invalidate(pattern) {
     // Invalidate cache entries matching pattern
     const keysToDelete = [];
-    
+
     for (const key of this.cache.keys()) {
       if (key.includes(pattern)) {
         keysToDelete.push(key);
       }
     }
-    
-    keysToDelete.forEach(key => {
+
+    keysToDelete.forEach((key) => {
       this.cache.delete(key);
       this.accessTimes.delete(key);
     });
-    
+
     return keysToDelete.length;
   }
 
@@ -107,15 +108,15 @@ class QueryCache {
       hitRate: totalRequests > 0 ? (this.hitCount / totalRequests) * 100 : 0,
       hitCount: this.hitCount,
       missCount: this.missCount,
-      totalRequests
+      totalRequests,
     };
   }
 
   deepClone(obj) {
     if (obj === null || typeof obj !== 'object') return obj;
     if (obj instanceof Date) return new Date(obj.getTime());
-    if (Array.isArray(obj)) return obj.map(item => this.deepClone(item));
-    
+    if (Array.isArray(obj)) return obj.map((item) => this.deepClone(item));
+
     const cloned = {};
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
@@ -134,24 +135,24 @@ class CacheWarmer {
 
   async warmCommonQueries() {
     if (this.warmingInProgress) return;
-    
+
     this.warmingInProgress = true;
-    
+
     try {
       console.log('Warming database cache...');
-      
+
       // Common filter combinations to pre-load
       const commonFilters = [
         {}, // All videos
         { sortBy: 'date' }, // Recent videos
         { favoritesOnly: true }, // Favorites
         { sortBy: 'name' }, // Alphabetical
-        { sortBy: 'size' } // By size
+        { sortBy: 'size' }, // By size
       ];
 
       // Get top folders and warm them too
       const folders = await this.database.getFolders();
-      folders.slice(0, 5).forEach(folder => {
+      folders.slice(0, 5).forEach((folder) => {
         commonFilters.push({ folder }); // Top folders
         commonFilters.push({ folder, sortBy: 'date' }); // Recent in folder
       });
@@ -167,14 +168,15 @@ class CacheWarmer {
           }
         }, i * 100); // 100ms between requests
       }
-      
+
       console.log('Cache warming completed');
     } finally {
       this.warmingInProgress = false;
     }
   }
 
-  schedulePeriodicWarming(intervalMs = 600000) { // 10 minutes
+  schedulePeriodicWarming(intervalMs = 600000) {
+    // 10 minutes
     setInterval(() => {
       this.warmCommonQueries();
     }, intervalMs);

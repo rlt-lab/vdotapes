@@ -9,7 +9,7 @@ class QueryPerformanceMonitor {
     this.slowQueryThreshold = 100; // ms
     this.slowQueries = [];
     this.maxSlowQueries = 50; // Keep last 50 slow queries
-    
+
     // Performance metrics
     this.totalQueries = 0;
     this.totalTime = 0;
@@ -21,7 +21,7 @@ class QueryPerformanceMonitor {
       const start = performance.now();
       let result;
       let error = null;
-      
+
       try {
         result = queryFn.apply(this, args);
       } catch (err) {
@@ -31,7 +31,7 @@ class QueryPerformanceMonitor {
         const duration = performance.now() - start;
         this.recordQuery(queryName, duration, error, args);
       }
-      
+
       return result;
     };
   }
@@ -41,7 +41,7 @@ class QueryPerformanceMonitor {
       const start = performance.now();
       let result;
       let error = null;
-      
+
       try {
         result = await queryFn.apply(this, args);
       } catch (err) {
@@ -51,7 +51,7 @@ class QueryPerformanceMonitor {
         const duration = performance.now() - start;
         this.recordQuery(queryName, duration, error, args);
       }
-      
+
       return result;
     };
   }
@@ -59,7 +59,7 @@ class QueryPerformanceMonitor {
   recordQuery(queryName, duration, error = null, args = []) {
     this.totalQueries++;
     this.totalTime += duration;
-    
+
     // Update query statistics
     const stats = this.queryStats.get(queryName) || {
       count: 0,
@@ -69,28 +69,28 @@ class QueryPerformanceMonitor {
       maxTime: 0,
       errorCount: 0,
       lastError: null,
-      recentTimes: []
+      recentTimes: [],
     };
-    
+
     stats.count++;
     stats.totalTime += duration;
     stats.avgTime = stats.totalTime / stats.count;
     stats.minTime = Math.min(stats.minTime, duration);
     stats.maxTime = Math.max(stats.maxTime, duration);
-    
+
     if (error) {
       stats.errorCount++;
       stats.lastError = error.message;
     }
-    
+
     // Keep recent times for trend analysis (last 10)
     stats.recentTimes.push(duration);
     if (stats.recentTimes.length > 10) {
       stats.recentTimes.shift();
     }
-    
+
     this.queryStats.set(queryName, stats);
-    
+
     // Track slow queries
     if (duration > this.slowQueryThreshold) {
       this.recordSlowQuery(queryName, duration, args);
@@ -103,11 +103,11 @@ class QueryPerformanceMonitor {
       queryName,
       duration: Math.round(duration * 100) / 100, // Round to 2 decimals
       timestamp: Date.now(),
-      args: this.sanitizeArgs(args)
+      args: this.sanitizeArgs(args),
     };
-    
+
     this.slowQueries.push(slowQuery);
-    
+
     // Keep only recent slow queries
     if (this.slowQueries.length > this.maxSlowQueries) {
       this.slowQueries.shift();
@@ -124,9 +124,7 @@ class QueryPerformanceMonitor {
   }
 
   getSlowQueries(limit = 10) {
-    return this.slowQueries
-      .slice(-limit)
-      .sort((a, b) => b.duration - a.duration);
+    return this.slowQueries.slice(-limit).sort((a, b) => b.duration - a.duration);
   }
 
   getQueryStats() {
@@ -134,12 +132,13 @@ class QueryPerformanceMonitor {
       .map(([name, data]) => ({
         queryName: name,
         ...data,
-        recentAvg: data.recentTimes.length > 0 
-          ? data.recentTimes.reduce((a, b) => a + b, 0) / data.recentTimes.length 
-          : 0
+        recentAvg:
+          data.recentTimes.length > 0
+            ? data.recentTimes.reduce((a, b) => a + b, 0) / data.recentTimes.length
+            : 0,
       }))
       .sort((a, b) => b.avgTime - a.avgTime);
-    
+
     return stats;
   }
 
@@ -147,7 +146,7 @@ class QueryPerformanceMonitor {
     const avgQueryTime = this.totalQueries > 0 ? this.totalTime / this.totalQueries : 0;
     const uptime = Date.now() - this.startTime;
     const queriesPerSecond = this.totalQueries / (uptime / 1000);
-    
+
     return {
       totalQueries: this.totalQueries,
       totalTime: Math.round(this.totalTime * 100) / 100,
@@ -155,7 +154,7 @@ class QueryPerformanceMonitor {
       queriesPerSecond: Math.round(queriesPerSecond * 100) / 100,
       uptime: uptime,
       slowQueryCount: this.slowQueries.length,
-      uniqueQueries: this.queryStats.size
+      uniqueQueries: this.queryStats.size,
     };
   }
 
@@ -163,51 +162,51 @@ class QueryPerformanceMonitor {
     const summary = this.getSummaryStats();
     const slowQueries = this.getSlowQueries(5);
     const topQueries = this.getQueryStats().slice(0, 5);
-    
+
     const report = {
       timestamp: new Date().toISOString(),
       summary,
       slowQueries,
       topQueriesByAvgTime: topQueries,
-      recommendations: this.generateRecommendations()
+      recommendations: this.generateRecommendations(),
     };
-    
+
     return report;
   }
 
   generateRecommendations() {
     const recommendations = [];
     const stats = this.getQueryStats();
-    
+
     // Check for consistently slow queries
-    stats.forEach(stat => {
+    stats.forEach((stat) => {
       if (stat.avgTime > this.slowQueryThreshold && stat.count > 5) {
         recommendations.push({
           type: 'slow_query',
           message: `Query "${stat.queryName}" averages ${stat.avgTime.toFixed(1)}ms over ${stat.count} executions`,
-          suggestion: 'Consider adding indexes or optimizing this query'
+          suggestion: 'Consider adding indexes or optimizing this query',
         });
       }
-      
+
       if (stat.errorCount > 0) {
         recommendations.push({
           type: 'query_errors',
           message: `Query "${stat.queryName}" has ${stat.errorCount} errors out of ${stat.count} executions`,
-          suggestion: 'Investigate and fix query errors'
+          suggestion: 'Investigate and fix query errors',
         });
       }
     });
-    
+
     // Check overall performance
     const summary = this.getSummaryStats();
     if (summary.avgQueryTime > 50) {
       recommendations.push({
         type: 'overall_performance',
         message: `Overall average query time is ${summary.avgQueryTime.toFixed(1)}ms`,
-        suggestion: 'Database performance may need optimization'
+        suggestion: 'Database performance may need optimization',
       });
     }
-    
+
     return recommendations;
   }
 
@@ -215,21 +214,21 @@ class QueryPerformanceMonitor {
     const report = this.generateReport();
     console.log('=== Database Performance Report ===');
     console.log('Summary:', report.summary);
-    
+
     if (report.slowQueries.length > 0) {
       console.log('Recent Slow Queries:');
-      report.slowQueries.forEach(q => {
+      report.slowQueries.forEach((q) => {
         console.log(`  ${q.queryName}: ${q.duration}ms`);
       });
     }
-    
+
     if (report.recommendations.length > 0) {
       console.log('Recommendations:');
-      report.recommendations.forEach(rec => {
+      report.recommendations.forEach((rec) => {
         console.log(`  ${rec.type}: ${rec.message} - ${rec.suggestion}`);
       });
     }
-    
+
     return report;
   }
 

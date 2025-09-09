@@ -19,6 +19,7 @@ Implement a comprehensive cancellation system for long-running operations (folde
 ## Solution Design
 
 ### 1. Cancellation Token System
+
 Create a robust cancellation system that can be used across all async operations.
 
 ```javascript
@@ -32,22 +33,22 @@ class CancellationToken {
 
   cancel(reason = 'Operation cancelled') {
     if (this.cancelled) return;
-    
+
     this.cancelled = true;
     this.reason = reason;
-    
+
     // Notify all callbacks
-    this.callbacks.forEach(callback => {
+    this.callbacks.forEach((callback) => {
       try {
         callback(reason);
       } catch (error) {
         console.error('Cancellation callback error:', error);
       }
     });
-    
+
     // Cancel all child tokens
-    this.children.forEach(child => child.cancel(reason));
-    
+    this.children.forEach((child) => child.cancel(reason));
+
     // Clear references
     this.callbacks.clear();
     this.children.clear();
@@ -70,23 +71,23 @@ class CancellationToken {
   createChild() {
     const child = new CancellationToken();
     this.children.add(child);
-    
+
     if (this.cancelled) {
       child.cancel(this.reason);
     }
-    
+
     return child;
   }
 
   static combine(...tokens) {
     const combined = new CancellationToken();
-    
-    tokens.forEach(token => {
+
+    tokens.forEach((token) => {
       token.onCancelled((reason) => {
         combined.cancel(reason);
       });
     });
-    
+
     return combined;
   }
 
@@ -109,6 +110,7 @@ class CancellationError extends Error {
 ```
 
 ### 2. Operation Manager
+
 Manage and track all cancellable operations in the application.
 
 ```javascript
@@ -123,7 +125,7 @@ class OperationManager {
     const token = new CancellationToken();
     const timeout = options.timeout ? CancellationToken.timeout(options.timeout) : null;
     const effectiveToken = timeout ? CancellationToken.combine(token, timeout) : token;
-    
+
     const operationInfo = {
       id,
       name,
@@ -134,21 +136,21 @@ class OperationManager {
       status: 'running',
       onProgress: options.onProgress,
       onComplete: options.onComplete,
-      onError: options.onError
+      onError: options.onError,
     };
 
     this.operations.set(id, operationInfo);
-    
+
     // Execute operation
     this.executeOperation(operationInfo, operation);
-    
+
     return {
       id,
       token: effectiveToken,
       cancel: (reason) => token.cancel(reason),
-      onProgress: (callback) => operationInfo.onProgress = callback,
-      onComplete: (callback) => operationInfo.onComplete = callback,
-      onError: (callback) => operationInfo.onError = callback
+      onProgress: (callback) => (operationInfo.onProgress = callback),
+      onComplete: (callback) => (operationInfo.onComplete = callback),
+      onError: (callback) => (operationInfo.onError = callback),
     };
   }
 
@@ -160,17 +162,17 @@ class OperationManager {
           operationInfo.onProgress(progress);
         }
       });
-      
+
       operationInfo.status = 'completed';
       operationInfo.result = result;
-      
+
       if (operationInfo.onComplete) {
         operationInfo.onComplete(result);
       }
     } catch (error) {
       operationInfo.status = error instanceof CancellationError ? 'cancelled' : 'failed';
       operationInfo.error = error;
-      
+
       if (operationInfo.onError) {
         operationInfo.onError(error);
       }
@@ -208,6 +210,7 @@ class OperationManager {
 ```
 
 ### 3. Cancellable File Operations
+
 Make file scanning and metadata extraction cancellable.
 
 ```javascript
@@ -216,7 +219,7 @@ class CancellableVideoScanner {
   async scanDirectory(folderPath, cancellationToken, progressCallback) {
     const files = [];
     let processedCount = 0;
-    
+
     try {
       await this.scanDirectoryRecursive(folderPath, files, cancellationToken, (count) => {
         processedCount = count;
@@ -224,11 +227,11 @@ class CancellableVideoScanner {
           progressCallback({
             phase: 'scanning',
             processed: processedCount,
-            currentPath: folderPath
+            currentPath: folderPath,
           });
         }
       });
-      
+
       return files;
     } catch (error) {
       if (error instanceof CancellationError) {
@@ -241,26 +244,26 @@ class CancellableVideoScanner {
 
   async scanDirectoryRecursive(dirPath, files, cancellationToken, progressCallback) {
     cancellationToken.throwIfCancelled();
-    
+
     try {
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      
+
       for (const entry of entries) {
         cancellationToken.throwIfCancelled();
-        
+
         const fullPath = path.join(dirPath, entry.name);
-        
+
         if (entry.isDirectory()) {
           await this.scanDirectoryRecursive(fullPath, files, cancellationToken, progressCallback);
         } else if (this.isVideoFile(entry.name)) {
           const fileInfo = await this.getFileInfo(fullPath);
           files.push(fileInfo);
-          
+
           if (progressCallback) {
             progressCallback(files.length);
           }
         }
-        
+
         // Yield control periodically
         if (files.length % 10 === 0) {
           await this.yield();
@@ -276,12 +279,13 @@ class CancellableVideoScanner {
   }
 
   async yield() {
-    return new Promise(resolve => setImmediate(resolve));
+    return new Promise((resolve) => setImmediate(resolve));
   }
 }
 ```
 
 ### 4. Cancellable Metadata Extraction
+
 Make metadata extraction cancellable with progress reporting.
 
 ```javascript
@@ -297,7 +301,7 @@ class CancellableMetadataExtractor {
     const chunkSize = 5;
     for (let i = 0; i < filePaths.length; i += chunkSize) {
       cancellationToken.throwIfCancelled();
-      
+
       const chunk = filePaths.slice(i, i + chunkSize);
       const chunkPromises = chunk.map(async (filePath) => {
         try {
@@ -315,8 +319,8 @@ class CancellableMetadataExtractor {
       });
 
       const chunkResults = await Promise.allSettled(chunkPromises);
-      
-      chunkResults.forEach(result => {
+
+      chunkResults.forEach((result) => {
         if (result.status === 'fulfilled') {
           results.push(result.value);
         }
@@ -330,7 +334,7 @@ class CancellableMetadataExtractor {
           failed,
           total,
           percentage: Math.round(((completed + failed) / total) * 100),
-          currentFile: chunk[0] // First file in current chunk
+          currentFile: chunk[0], // First file in current chunk
         });
       }
     }
@@ -341,11 +345,13 @@ class CancellableMetadataExtractor {
   async extractSingleFile(filePath, cancellationToken) {
     return new Promise((resolve, reject) => {
       const ffprobe = spawn(this.ffprobePath, [
-        '-v', 'quiet',
-        '-print_format', 'json',
+        '-v',
+        'quiet',
+        '-print_format',
+        'json',
         '-show_format',
         '-show_streams',
-        filePath
+        filePath,
       ]);
 
       let stdout = '';
@@ -369,7 +375,7 @@ class CancellableMetadataExtractor {
 
       ffprobe.on('close', (code) => {
         if (code === null) return; // Process was killed (likely cancelled)
-        
+
         if (code !== 0) {
           reject(new Error(`FFprobe failed: ${stderr}`));
           return;
@@ -419,7 +425,7 @@ class IPCHandlers {
           timeout: 300000, // 5 minute timeout
           onProgress: (progress) => {
             event.sender.send('folder-scan-progress', progress);
-          }
+          },
         }
       );
 
@@ -464,7 +470,7 @@ class OperationUI {
   showOperationProgress(operationId, title) {
     const progressElement = this.createProgressElement(operationId, title);
     this.activeOperations.set(operationId, progressElement);
-    
+
     // Listen for progress updates
     vdoTapesAPI.onFolderScanProgress((progress) => {
       this.updateProgress(operationId, progress);
@@ -553,7 +559,7 @@ class OperationPersistence {
     const operations = this.getStoredOperations();
     operations[operationId] = {
       ...state,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     localStorage.setItem('pendingOperations', JSON.stringify(operations));
   }
@@ -569,7 +575,7 @@ class OperationPersistence {
   resumePendingOperations() {
     const operations = this.getStoredOperations();
     const now = Date.now();
-    
+
     Object.entries(operations).forEach(([id, state]) => {
       // Only resume operations from the last hour
       if (now - state.timestamp < 3600000) {
@@ -635,31 +641,33 @@ class OperationPersistence {
 ## User Experience Improvements
 
 ### 1. Smart Cancellation
+
 ```javascript
 // Offer smart cancellation options
 class SmartCancellation {
   async cancelWithOptions(operationId) {
     const operation = this.operationManager.getOperationStatus(operationId);
-    
+
     if (operation.name === 'metadata-extraction' && operation.progress > 50) {
       // Offer to keep already extracted data
       const keepPartial = await this.showDialog({
         title: 'Cancel Metadata Extraction',
         message: `${operation.progress}% complete. Keep data for processed videos?`,
-        buttons: ['Keep Partial Data', 'Discard All', 'Continue']
+        buttons: ['Keep Partial Data', 'Discard All', 'Continue'],
       });
-      
+
       if (keepPartial === 'Continue') return false;
-      
+
       operation.keepPartialResults = keepPartial === 'Keep Partial Data';
     }
-    
+
     return this.operationManager.cancelOperation(operationId);
   }
 }
 ```
 
 ### 2. Background Operations
+
 ```javascript
 // Allow operations to continue in background
 class BackgroundOperations {
@@ -690,6 +698,7 @@ class BackgroundOperations {
 ## Next Steps
 
 After completion, this enables:
+
 - Better user experience for all long-running operations
 - Foundation for background processing
 - More sophisticated progress reporting

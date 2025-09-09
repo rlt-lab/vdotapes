@@ -1,6 +1,7 @@
 # Junior Developer Workflow Guide
 
 ## Prerequisites
+
 - Review the [App Features Roadmap](app_features_roadmap.md) to understand feature complexity and requirements
 - Ensure development environment is set up with proper debugging tools
 - Create a feature branch for each implementation
@@ -10,9 +11,11 @@
 ### Phase 1: Easy Implementation Features (Week 1)
 
 #### Feature 1: Show Subfolder Name on Hover
+
 **Reference**: App Features Roadmap - Easy Implementation #1
 
 1. **Setup**
+
    ```bash
    git checkout -b feature/subfolder-hover-tooltip
    ```
@@ -36,9 +39,11 @@
    ```
 
 #### Feature 2: Open File Location in OS Browser
+
 **Reference**: App Features Roadmap - Easy Implementation #2
 
 1. **Setup**
+
    ```bash
    git checkout main && git pull
    git checkout -b feature/open-file-location
@@ -51,7 +56,7 @@
      const openFileLocation = (filePath) => {
        const { shell } = require('electron');
        shell.showItemInFolder(filePath);
-     }
+     };
      ```
    - Add "Open Location" option to context menu
    - Wire up click handler
@@ -65,9 +70,11 @@
 4. **Commit and PR**
 
 #### Feature 3: Add to Favorites
+
 **Reference**: App Features Roadmap - Easy Implementation #3
 
 1. **Setup**
+
    ```bash
    git checkout main && git pull
    git checkout -b feature/favorites-system
@@ -80,9 +87,15 @@
      ```
    - Create favorites utility functions:
      ```javascript
-     const addToFavorites = (filePath) => { /* implementation */ }
-     const removeFromFavorites = (filePath) => { /* implementation */ }
-     const isFavorite = (filePath) => { /* implementation */ }
+     const addToFavorites = (filePath) => {
+       /* implementation */
+     };
+     const removeFromFavorites = (filePath) => {
+       /* implementation */
+     };
+     const isFavorite = (filePath) => {
+       /* implementation */
+     };
      ```
    - Add "Add to Favorites" context menu option
    - Add visual indicator (star icon) to thumbnail component
@@ -99,9 +112,11 @@
 ### Phase 2: Medium Implementation Features (Week 2-3)
 
 #### Feature 4: Hide/Show Files Toggle
+
 **Reference**: App Features Roadmap - Medium Implementation #4
 
 1. **Setup**
+
    ```bash
    git checkout main && git pull
    git checkout -b feature/hide-show-files
@@ -129,9 +144,11 @@
 4. **Commit and PR**
 
 #### Feature 5: Move to Subfolder
+
 **Reference**: App Features Roadmap - Medium Implementation #5
 
 1. **Setup**
+
    ```bash
    git checkout main && git pull
    git checkout -b feature/move-to-subfolder
@@ -142,7 +159,7 @@
      ```javascript
      const getSubfolders = (rootPath) => {
        // Use fs.readdirSync with isDirectory check
-     }
+     };
      ```
    - Create modal/dropdown component for subfolder selection
    - Add "Move to Subfolder" context menu option
@@ -150,7 +167,7 @@
      ```javascript
      const moveFile = async (sourcePath, targetFolder) => {
        // Use fs.promises.rename or fs.promises.copyFile + unlink
-     }
+     };
      ```
    - Refresh file view after successful move
    - Add loading states and error notifications
@@ -168,9 +185,11 @@
 ### Phase 3: Complex Implementation Features (Week 4-5)
 
 #### Feature 6: Multi-View Feature
+
 **Reference**: App Features Roadmap - Complex Implementation #6
 
 1. **Setup**
+
    ```bash
    git checkout main && git pull
    git checkout -b feature/multi-view
@@ -180,17 +199,18 @@
 
    **Step 2a: State Management**
    - Add multi-view state with FIFO queue logic:
+
      ```javascript
      const [multiViewQueue, setMultiViewQueue] = useState([]);
      const [isMultiViewActive, setIsMultiViewActive] = useState(false);
-     
+
      const addToMultiView = (filePath) => {
-       setMultiViewQueue(prev => {
-         const newQueue = prev.filter(item => item !== filePath);
+       setMultiViewQueue((prev) => {
+         const newQueue = prev.filter((item) => item !== filePath);
          newQueue.push(filePath);
          return newQueue.slice(-3); // Keep max 3 items
        });
-     }
+     };
      ```
 
    **Step 2b: Context Menu Integration**
@@ -223,24 +243,28 @@
 ## General Development Guidelines
 
 ### Code Quality
+
 - Write clear, documented code with comments
 - Follow existing code style and patterns
 - Use meaningful variable and function names
 - Add proper error handling for all file operations
 
 ### Testing Strategy
+
 - Test each feature thoroughly before moving to next
 - Test edge cases (empty folders, permission errors, etc.)
 - Verify features work across different operating systems
 - Test performance with large numbers of files
 
 ### Git Workflow
+
 - One feature per branch
 - Clear, descriptive commit messages
 - Small, focused commits
 - Create PR for each feature for code review
 
 ### Documentation
+
 - Update any relevant documentation
 - Add inline comments for complex logic
 - Document any new configuration options
@@ -249,18 +273,21 @@
 ## Troubleshooting Common Issues
 
 ### File System Operations
+
 - Always use proper error handling for file operations
 - Check file permissions before attempting moves
 - Use path.resolve() for consistent path handling
 - Test with files that have special characters in names
 
 ### UI/UX Considerations
+
 - Ensure context menus don't interfere with existing functionality
 - Add loading states for operations that take time
 - Provide user feedback for successful operations
 - Handle edge cases gracefully (empty states, errors)
 
 ### Performance
+
 - Debounce hover events to prevent excessive updates
 - Use efficient data structures for state management
 - Avoid unnecessary re-renders in React components

@@ -7,6 +7,7 @@ VDOTapes is a beautiful, cross-platform desktop application for browsing and org
 ## ✨ Features
 
 ### 🎯 Core Functionality
+
 - **📁 Folder Selection** - Browse and scan video collections from any directory
 - **🎬 Multi-Format Support** - MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, M4V
 - **📱 Responsive Grid** - Instagram-style layout with customizable columns (1-12)
@@ -18,12 +19,14 @@ VDOTapes is a beautiful, cross-platform desktop application for browsing and org
 - **💾 Persistent Settings** - Remembers your preferences across sessions
 
 ### 🛡️ Security & Performance
+
 - **🔒 Secure Architecture** - Context isolation, disabled Node integration
 - **⚡ High Performance** - Lazy loading, intersection observer, optimized database
 - **💾 SQLite Database** - Fast, reliable storage with WAL mode
 - **🎯 Memory Efficient** - Proper cleanup and blob URL management
 
 ### 🎨 User Experience
+
 - **🌙 Dark Theme** - Modern, eye-friendly interface
 - **📱 Touch Support** - Mobile-friendly responsive design
 - **♿ Accessible** - Proper contrast and focus states
@@ -53,10 +56,11 @@ npm run build:mac    # macOS
 npm run build:win    # Windows
 npm run build        # All platforms
 
-# Find your build in the dist/ folder
+# Find your build in the dist/packages/ folder
 ```
 
 ### First Launch
+
 1. **Open VDOTapes** from your Applications/Start Menu (or run the built executable)
 2. **Click "📁 Select Video Folder"** to choose your video collection
 3. **Wait for scan** - the app will index your videos
@@ -66,12 +70,14 @@ npm run build        # All platforms
 ## 🎮 Usage Guide
 
 ### Basic Navigation
+
 - **Grid Browsing** - Scroll through your video collection
 - **Auto-Play** - Videos preview automatically when visible
 - **Click to Expand** - Click any video for full-screen view
 - **Close Expanded** - Press ESC or click the × button
 
 ### Filtering & Sorting
+
 - **Folder Filter** - Use dropdown to show videos from specific folders
 - **Sort Options** - Sort by folder, date, or name
 - **Favorites** - Click heart icons to mark favorites
@@ -79,6 +85,7 @@ npm run build        # All platforms
 - **Shuffle** - Randomize video order for discovery
 
 ### Customization
+
 - **Grid Size** - Adjust columns (1-12) using the number input
 - **Settings** - Your preferences are automatically saved
 - **Responsive** - Layout adapts to window size
@@ -86,11 +93,13 @@ npm run build        # All platforms
 ## 🛠️ Development
 
 ### Prerequisites
-- **Node.js** 18+ 
+
+- **Node.js** 18+
 - **npm** or **yarn**
 - **Git**
 
 ### Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/vdotapes.git
@@ -104,6 +113,7 @@ npm run dev
 ```
 
 ### Available Scripts
+
 ```bash
 npm start          # Start the app in development
 npm run dev        # Start with DevTools open
@@ -114,18 +124,22 @@ npm run pack       # Create unpacked build for testing
 ```
 
 ### Build Outputs
-After building, you'll find the following in the `dist/` folder:
+
+After building, you'll find the following in the `dist/packages/` folder:
 
 **macOS:**
+
 - `VDOTapes.app` - Application bundle
 - `VDOTapes-1.0.0-arm64.dmg` - Disk image installer
 
 **Windows:**
+
 - `VDOTapes 1.0.0.exe` - Portable executable (no install required)
 - `VDOTapes Setup 1.0.0.exe` - Traditional installer
 - `win-unpacked/` - Unpacked application folder
 
 ### Project Structure
+
 ```
 vdotapes/
 ├── app/                    # Frontend application
@@ -138,36 +152,41 @@ vdotapes/
 │   ├── ipc-handlers.js    # IPC communication
 │   ├── thumbnail-gen.js   # Thumbnail generation
 │   └── video-scanner.js   # Video file scanning
-├── main.js               # Electron main process
-├── preload.js            # Secure IPC bridge
+├── src/main.ts           # Electron main process (compiled to dist/main/src/main.js)
+├── src/preload.ts        # Secure IPC bridge (compiled to dist/main/src/preload.js)
 ├── package.json          # Dependencies and scripts
 └── README.md            # This file
 ```
 
 ### Architecture
-- **Main Process** (`main.js`) - Electron backend with security policies
+
+- **Main Process** (`src/main.ts` → `dist/main/src/main.js`) - Electron backend with security policies
 - **Renderer Process** (`app/`) - Frontend UI with responsive design
-- **IPC Bridge** (`preload.js`) - Secure communication between processes
-- **Database** (`src/database.js`) - SQLite with optimized queries
-- **Video Scanner** (`src/video-scanner.js`) - Multi-format file detection
-- **IPC Handlers** (`src/ipc-handlers.js`) - Backend API endpoints
+- **IPC Bridge** (`src/preload.ts` → `dist/main/src/preload.js`) - Secure communication between processes
+- **Database** (`src/database.ts`) - SQLite with optimized queries
+- **Video Scanner** (`src/video-scanner.ts`) - Multi-format file detection
+- **IPC Handlers** (`src/ipc-handlers.ts`) - Backend API endpoints
 
 ## 🔧 Configuration
 
 ### Build Configuration
+
 The app is configured for cross-platform distribution:
 
 **macOS:**
+
 - Creates `.app` bundle and `.dmg` installer
 - Code signed (if certificates available)
 - Category: Video applications
 
 **Windows:**
+
 - Creates portable `.exe` (no installation required)
 - Creates NSIS installer for traditional installation
 - 64-bit architecture only
 
 ### Database Schema
+
 - **videos** - Video metadata and file information
 - **favorites** - User favorite selections
 - **thumbnails** - Thumbnail storage (future feature)
@@ -178,27 +197,33 @@ The app is configured for cross-platform distribution:
 ### Common Issues
 
 **App won't start:**
+
 - Check Node.js version (requires 18+)
 - Try `npm install` to reinstall dependencies
 - Check console for error messages
 
 **Videos not loading:**
+
 - Verify video format is supported
 - Check file permissions
 - Ensure videos are not corrupted
 
 **Performance issues:**
+
 - Reduce grid column count
 - Close other applications
 - Check available disk space
 
 **Build errors:**
+
 - Clear `node_modules` and reinstall
 - Update electron-builder: `npm update electron-builder`
 - Check platform-specific requirements
 
 ### Debug Mode
+
 Run with development tools:
+
 ```bash
 npm run dev
 ```
@@ -212,6 +237,7 @@ npm run dev
 5. **Open** a Pull Request
 
 ### Development Guidelines
+
 - Follow existing code style
 - Add tests for new features
 - Update documentation
@@ -220,11 +246,13 @@ npm run dev
 ## 📋 Roadmap
 
 ### Immediate Goals
+
 - [ ] **GitHub Releases** - Automated builds and releases for easy downloads
 - [ ] **Thumbnail Generation** - Automatic video thumbnails
 - [ ] **Drag & Drop** - Folder selection via drag and drop
 
 ### Planned Features
+
 - [ ] **Keyboard Shortcuts** - Navigation and control shortcuts
 - [ ] **Context Menus** - Right-click actions for videos
 - [ ] **Search Functionality** - Search across video names and folders
@@ -233,6 +261,7 @@ npm run dev
 - [ ] **Batch Operations** - Multi-select and batch actions
 
 ### Future Enhancements
+
 - [ ] **Video Editing** - Basic trimming and editing capabilities
 - [ ] **Playlists** - Create and manage video playlists
 - [ ] **Cloud Sync** - Sync favorites across devices
@@ -258,4 +287,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**VDOTapes** - Making video browsing beautiful and efficient since 2024 🎬✨ 
+**VDOTapes** - Making video browsing beautiful and efficient since 2024 🎬✨

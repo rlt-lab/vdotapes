@@ -19,6 +19,7 @@ Implement proper video element lifecycle management to prevent memory leaks, red
 ## Solution Design
 
 ### 1. Video Lifecycle Manager
+
 Create a centralized system to manage video element lifecycle from creation to destruction.
 
 ```javascript
@@ -47,6 +48,7 @@ class VideoLifecycleManager {
 ```
 
 ### 2. Video Element State Management
+
 Track and manage the state of each video element throughout its lifecycle.
 
 ```javascript
@@ -115,7 +117,7 @@ class EventListenerManager {
     if (this.listeners.has(key)) {
       this.removeEventListener(event, this.listeners.get(key));
     }
-    
+
     this.element.addEventListener(event, handler, options);
     this.listeners.set(key, { event, handler, options });
   }
@@ -145,7 +147,7 @@ class PreviewLoopManager {
 
   startPreviewLoop(videoElement, videoId) {
     this.stopPreviewLoop(videoId); // Cleanup existing
-    
+
     const duration = videoElement.duration;
     if (!duration || duration <= 20) {
       // Short videos play normally
@@ -167,7 +169,7 @@ class PreviewLoopManager {
     this.activeLoops.set(videoId, {
       element: videoElement,
       handler: loopHandler,
-      lastUsed: Date.now()
+      lastUsed: Date.now(),
     });
 
     // Set initial position and play
@@ -231,11 +233,11 @@ class VideoSourceManager {
       videoElement.pause();
       videoElement.src = '';
       videoElement.load(); // Force unload
-      
+
       if (currentSrc.startsWith('blob:')) {
         this.scheduleBlobCleanup(currentSrc);
       }
-      
+
       this.loadedSources.delete(videoElement);
     }
   }
@@ -251,19 +253,19 @@ class VideoSourceManager {
   }
 
   checkMemoryPressure() {
-    if (performance.memory && 
-        performance.memory.usedJSHeapSize > this.memoryPressureThreshold) {
+    if (performance.memory && performance.memory.usedJSHeapSize > this.memoryPressureThreshold) {
       this.performEmergencyCleanup();
     }
   }
 
   performEmergencyCleanup() {
     // Cleanup oldest/least used video sources
-    const sortedElements = Array.from(this.loadedSources.keys())
-      .sort((a, b) => (a._lastInteraction || 0) - (b._lastInteraction || 0));
-    
+    const sortedElements = Array.from(this.loadedSources.keys()).sort(
+      (a, b) => (a._lastInteraction || 0) - (b._lastInteraction || 0)
+    );
+
     const toCleanup = sortedElements.slice(0, Math.floor(sortedElements.length / 2));
-    toCleanup.forEach(element => this.unloadVideoSource(element));
+    toCleanup.forEach((element) => this.unloadVideoSource(element));
   }
 }
 ```
@@ -277,21 +279,18 @@ class VideoSourceManager {
 class VideoVisibilityManager {
   constructor(lifecycleManager) {
     this.lifecycleManager = lifecycleManager;
-    this.observer = new IntersectionObserver(
-      this.handleIntersection.bind(this),
-      {
-        root: null,
-        rootMargin: '100px', // Preload buffer
-        threshold: [0, 0.1, 0.5, 1.0] // Multiple thresholds for fine control
-      }
-    );
+    this.observer = new IntersectionObserver(this.handleIntersection.bind(this), {
+      root: null,
+      rootMargin: '100px', // Preload buffer
+      threshold: [0, 0.1, 0.5, 1.0], // Multiple thresholds for fine control
+    });
   }
 
   handleIntersection(entries) {
-    entries.forEach(entry => {
+    entries.forEach((entry) => {
       const videoId = entry.target.dataset.videoId;
       const state = this.lifecycleManager.activeVideos.get(videoId);
-      
+
       if (!state) return;
 
       if (entry.isIntersecting) {
@@ -302,10 +301,11 @@ class VideoVisibilityManager {
         // Video completely out of view
         if (entry.intersectionRatio === 0) {
           state.deactivate();
-          
+
           // Schedule cleanup if out of view for too long
           setTimeout(() => {
-            if (!entry.target.offsetParent) { // Element removed from DOM
+            if (!entry.target.offsetParent) {
+              // Element removed from DOM
               this.lifecycleManager.unregisterVideo(videoId);
             }
           }, 10000);
@@ -346,13 +346,13 @@ class VideoVisibilityManager {
 // In renderer.js - Update video creation
 createVideoItemHTML(video, index) {
   const videoElement = this.createVideoElement(video);
-  
+
   // Register with lifecycle manager
   const state = this.videoLifecycleManager.registerVideo(videoElement, video);
-  
+
   // Observe for visibility changes
   this.visibilityManager.observeVideo(videoElement);
-  
+
   return videoElement;
 }
 
@@ -401,14 +401,14 @@ class CleanupMonitor {
       videosDestroyed: 0,
       eventListenersActive: 0,
       memoryUsage: 0,
-      activeLoops: 0
+      activeLoops: 0,
     };
   }
 
   logStats() {
     console.log('Video Cleanup Stats:', {
       ...this.stats,
-      memoryUsage: performance.memory?.usedJSHeapSize || 'N/A'
+      memoryUsage: performance.memory?.usedJSHeapSize || 'N/A',
     });
   }
 
@@ -427,6 +427,7 @@ class CleanupMonitor {
 ## Next Steps
 
 After completion, this enables:
+
 - **Plan 3:** Database indexing (stable memory usage allows larger datasets)
 - **Plan 4:** Video metadata extraction (efficient resource management)
 - More complex video features without memory concerns

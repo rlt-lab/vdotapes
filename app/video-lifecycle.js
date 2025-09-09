@@ -9,15 +9,15 @@ class VideoLifecycleManager {
     this.cleanupQueue = new Set();
     this.maxActiveVideos = options.maxActiveVideos || 20;
     this.cleanupInterval = options.cleanupInterval || 30000; // 30 seconds
-    
+
     // Start periodic cleanup
     this.startPeriodicCleanup();
-    
+
     // Global cleanup on page unload
     window.addEventListener('beforeunload', () => {
       this.cleanup();
     });
-    
+
     // Memory pressure monitoring
     this.memoryPressureThreshold = 100 * 1024 * 1024; // 100MB
     this.startMemoryMonitoring();
@@ -31,10 +31,10 @@ class VideoLifecycleManager {
 
     const state = new VideoElementState(videoElement, videoData);
     this.activeVideos.set(videoData.id, state);
-    
+
     // Enforce active video limit
     this.enforceActiveLimit();
-    
+
     return state;
   }
 
@@ -65,11 +65,11 @@ class VideoLifecycleManager {
 
     // Sort by last interaction time and deactivate oldest
     const sortedStates = Array.from(this.activeVideos.values())
-      .filter(state => state.isActive)
+      .filter((state) => state.isActive)
       .sort((a, b) => a.lastInteraction - b.lastInteraction);
 
     const toDeactivate = sortedStates.slice(0, sortedStates.length - this.maxActiveVideos);
-    toDeactivate.forEach(state => state.deactivate());
+    toDeactivate.forEach((state) => state.deactivate());
   }
 
   startPeriodicCleanup() {
@@ -84,7 +84,7 @@ class VideoLifecycleManager {
 
     for (const [videoId, state] of this.activeVideos) {
       // Clean up videos that have been inactive for too long
-      if (!state.isActive && (now - state.lastInteraction) > inactiveThreshold) {
+      if (!state.isActive && now - state.lastInteraction > inactiveThreshold) {
         this.unregisterVideo(videoId);
       }
     }
@@ -110,12 +110,12 @@ class VideoLifecycleManager {
   performEmergencyCleanup() {
     // Aggressively clean up inactive videos
     const inactive = Array.from(this.activeVideos.values())
-      .filter(state => !state.isActive)
+      .filter((state) => !state.isActive)
       .sort((a, b) => a.lastInteraction - b.lastInteraction);
 
     // Remove half of inactive videos
     const toRemove = inactive.slice(0, Math.floor(inactive.length / 2));
-    toRemove.forEach(state => this.unregisterVideo(state.videoData.id));
+    toRemove.forEach((state) => this.unregisterVideo(state.videoData.id));
   }
 
   cleanup() {
@@ -127,12 +127,12 @@ class VideoLifecycleManager {
   }
 
   getStats() {
-    const active = Array.from(this.activeVideos.values()).filter(s => s.isActive).length;
+    const active = Array.from(this.activeVideos.values()).filter((s) => s.isActive).length;
     return {
       total: this.activeVideos.size,
       active,
       inactive: this.activeVideos.size - active,
-      memoryUsage: performance.memory?.usedJSHeapSize || 'N/A'
+      memoryUsage: performance.memory?.usedJSHeapSize || 'N/A',
     };
   }
 }
@@ -143,49 +143,49 @@ class VideoElementState {
     this.videoData = videoData;
     this.isActive = false;
     this.lastInteraction = Date.now();
-    
+
     // Event listener management
     this.eventListeners = new EventListenerManager(element);
-    
+
     // Preview loop management
     this.previewLoopManager = new PreviewLoopManager();
-    
+
     // Video source management
     this.sourceManager = new VideoSourceManager();
   }
 
   activate() {
     if (this.isActive) return;
-    
+
     this.isActive = true;
     this.lastInteraction = Date.now();
-    
+
     // Setup intersection observer if needed
     this.setupVideoObserver();
   }
 
   deactivate() {
     if (!this.isActive) return;
-    
+
     this.isActive = false;
     this.pauseVideo();
-    
+
     // Reduce resource usage but keep element
     this.previewLoopManager.stopPreviewLoop(this.videoData.id);
   }
 
   cleanup() {
     this.isActive = false;
-    
+
     // Remove all event listeners
     this.eventListeners.removeAllListeners();
-    
+
     // Stop preview loops
     this.previewLoopManager.stopPreviewLoop(this.videoData.id);
-    
+
     // Clear video source
     this.sourceManager.unloadVideoSource(this.element.querySelector('video'));
-    
+
     // Clear references
     this.element = null;
     this.videoData = null;
@@ -235,18 +235,19 @@ class EventListenerManager {
 
   addEventListener(event, handler, options) {
     const key = `${event}_${handler.name || 'anonymous'}_${Date.now()}`;
-    
+
     // Remove existing listener if same event and handler name
-    const existingKey = Array.from(this.listeners.keys())
-      .find(k => k.startsWith(`${event}_${handler.name || 'anonymous'}`));
-    
+    const existingKey = Array.from(this.listeners.keys()).find((k) =>
+      k.startsWith(`${event}_${handler.name || 'anonymous'}`)
+    );
+
     if (existingKey) {
       this.removeEventListener(existingKey);
     }
-    
+
     this.element.addEventListener(event, handler, options);
     this.listeners.set(key, { event, handler, options });
-    
+
     return key;
   }
 
@@ -274,7 +275,7 @@ class PreviewLoopManager {
   constructor() {
     this.activeLoops = new Map();
     this.loopCleanupInterval = 30000; // 30 seconds
-    
+
     // Periodic cleanup of unused loops
     setInterval(() => {
       this.cleanupInactiveLoops();
@@ -283,7 +284,7 @@ class PreviewLoopManager {
 
   startPreviewLoop(videoElement, videoId) {
     this.stopPreviewLoop(videoId); // Cleanup existing
-    
+
     const duration = videoElement.duration;
     if (!duration || isNaN(duration) || duration <= 0) {
       // Can't create preview loop, play normally
@@ -319,7 +320,7 @@ class PreviewLoopManager {
       handler: loopHandler,
       lastUsed: Date.now(),
       start,
-      end
+      end,
     });
 
     // Set initial position and play
@@ -375,7 +376,7 @@ class VideoSourceManager {
 
   loadVideoSource(videoElement, videoData) {
     const videoSrc = videoData.path || videoData.url;
-    
+
     // Check if already loaded
     if (videoElement.src === videoSrc) return;
 
@@ -384,7 +385,7 @@ class VideoSourceManager {
 
     // Load new source
     videoElement.src = videoSrc;
-    
+
     if (videoSrc && videoSrc.startsWith('blob:')) {
       this.blobUrls.add(videoSrc);
     }
@@ -394,7 +395,7 @@ class VideoSourceManager {
 
   unloadVideoSource(videoElement) {
     if (!videoElement) return;
-    
+
     const currentSrc = this.loadedSources.get(videoElement);
     if (currentSrc) {
       videoElement.pause();
@@ -430,18 +431,19 @@ class VideoSourceManager {
 
   performEmergencyCleanup() {
     // Cleanup oldest/least used video sources
-    const sortedElements = Array.from(this.loadedSources.keys())
-      .sort((a, b) => (a._lastInteraction || 0) - (b._lastInteraction || 0));
+    const sortedElements = Array.from(this.loadedSources.keys()).sort(
+      (a, b) => (a._lastInteraction || 0) - (b._lastInteraction || 0)
+    );
 
     const toCleanup = sortedElements.slice(0, Math.floor(sortedElements.length / 2));
-    toCleanup.forEach(element => this.unloadVideoSource(element));
+    toCleanup.forEach((element) => this.unloadVideoSource(element));
   }
 
   getStats() {
     return {
       loadedSources: this.loadedSources.size,
       blobUrls: this.blobUrls.size,
-      memoryUsage: performance.memory?.usedJSHeapSize || 'N/A'
+      memoryUsage: performance.memory?.usedJSHeapSize || 'N/A',
     };
   }
 }
@@ -450,20 +452,17 @@ class VideoSourceManager {
 class VideoVisibilityManager {
   constructor(lifecycleManager) {
     this.lifecycleManager = lifecycleManager;
-    this.observer = new IntersectionObserver(
-      this.handleIntersection.bind(this),
-      {
-        root: null,
-        rootMargin: '100px', // Preload buffer
-        threshold: [0, 0.1, 0.5, 1.0] // Multiple thresholds for fine control
-      }
-    );
-    
+    this.observer = new IntersectionObserver(this.handleIntersection.bind(this), {
+      root: null,
+      rootMargin: '100px', // Preload buffer
+      threshold: [0, 0.1, 0.5, 1.0], // Multiple thresholds for fine control
+    });
+
     this.observedElements = new Set();
   }
 
   handleIntersection(entries) {
-    entries.forEach(entry => {
+    entries.forEach((entry) => {
       const videoId = entry.target.dataset.videoId;
       if (!videoId) return;
 
@@ -478,10 +477,11 @@ class VideoVisibilityManager {
         // Video completely out of view
         if (entry.intersectionRatio === 0) {
           state.deactivate();
-          
+
           // Schedule cleanup if out of view for too long
           setTimeout(() => {
-            if (!entry.target.offsetParent) { // Element removed from DOM
+            if (!entry.target.offsetParent) {
+              // Element removed from DOM
               this.lifecycleManager.unregisterVideo(videoId);
             }
           }, 10000);
@@ -492,7 +492,7 @@ class VideoVisibilityManager {
 
   observeVideo(videoElement) {
     if (this.observedElements.has(videoElement)) return;
-    
+
     this.observer.observe(videoElement);
     this.observedElements.add(videoElement);
   }

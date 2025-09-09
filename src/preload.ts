@@ -1,0 +1,126 @@
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+
+import type { ElectronAPI } from '../types/ipc';
+
+// Extend Window interface for Node.js globals cleanup
+declare global {
+  interface Window {
+    require?: any;
+    exports?: any;
+    module?: any;
+    global?: any;
+    process?: any;
+  }
+}
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+const electronAPI: ElectronAPI = {
+  // Folder selection
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
+
+  // App information
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getAppName: () => ipcRenderer.invoke('get-app-name'),
+
+  // Video scanning
+  scanVideos: (folderPath: string) => ipcRenderer.invoke('scan-videos', folderPath),
+  getScanProgress: () => ipcRenderer.invoke('get-scan-progress'),
+
+  // Database operations
+  getVideos: (filters) => ipcRenderer.invoke('get-videos', filters),
+  saveFavorite: (videoId, isFavorite) => ipcRenderer.invoke('save-favorite', videoId, isFavorite),
+  getFavorites: () => ipcRenderer.invoke('get-favorites'),
+  saveHiddenFile: (videoId, isHidden) => ipcRenderer.invoke('save-hidden-file', videoId, isHidden),
+  getHiddenFiles: () => ipcRenderer.invoke('get-hidden-files'),
+
+  // Rating operations
+  saveRating: (videoId, rating) => ipcRenderer.invoke('save-rating', videoId, rating),
+  getRating: (videoId) => ipcRenderer.invoke('get-rating', videoId),
+  removeRating: (videoId) => ipcRenderer.invoke('remove-rating', videoId),
+  getRatedVideos: () => ipcRenderer.invoke('get-rated-videos'),
+
+  // Thumbnail operations
+  generateThumbnail: (videoPath, timestamp) =>
+    ipcRenderer.invoke('generate-thumbnail', videoPath, timestamp),
+  getThumbnail: (videoId) => ipcRenderer.invoke('get-thumbnail', videoId),
+
+  // File operations
+  getVideoMetadata: (filePath) => ipcRenderer.invoke('get-video-metadata', filePath),
+  validateVideoFile: (filePath) => ipcRenderer.invoke('validate-video-file', filePath),
+  showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
+
+  // Settings
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+
+  // Enhanced settings
+  getLastFolder: () => ipcRenderer.invoke('get-last-folder'),
+  saveLastFolder: (folderPath) => ipcRenderer.invoke('save-last-folder', folderPath),
+  getUserPreferences: () => ipcRenderer.invoke('get-user-preferences'),
+  saveUserPreferences: (preferences) => ipcRenderer.invoke('save-user-preferences', preferences),
+
+  // Tags
+  addTag: (videoId, tagName) => ipcRenderer.invoke('tags-add', videoId, tagName),
+  removeTag: (videoId, tagName) => ipcRenderer.invoke('tags-remove', videoId, tagName),
+  listTags: (videoId) => ipcRenderer.invoke('tags-list', videoId),
+  listAllTags: () => ipcRenderer.invoke('tags-all'),
+  searchByTag: (query) => ipcRenderer.invoke('tags-search', query),
+
+  // Backup
+  exportBackup: () => ipcRenderer.invoke('backup-export'),
+  importBackup: (backup) => ipcRenderer.invoke('backup-import', backup),
+  exportBackupToFile: () => ipcRenderer.invoke('backup-export-file'),
+  importBackupFromFile: () => ipcRenderer.invoke('backup-import-file'),
+
+  // Progress and status
+  onScanProgress: (callback) => {
+    ipcRenderer.on('scan-progress', (event: IpcRendererEvent, data: any) => callback(data));
+  },
+  onScanComplete: (callback) => {
+    ipcRenderer.on('scan-complete', (event: IpcRendererEvent, data: any) => callback(data));
+  },
+  onError: (callback) => {
+    ipcRenderer.on('error', (event: IpcRendererEvent, error: any) => callback(error));
+  },
+
+  // Remove listeners
+  removeAllListeners: (channel) => {
+    ipcRenderer.removeAllListeners(channel);
+  },
+};
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+// Security: Prevent access to Node.js APIs
+window.addEventListener('DOMContentLoaded', () => {
+  // Remove Node.js globals from window
+  delete (window as any).require;
+  delete (window as any).exports;
+  delete (window as any).module;
+  delete (window as any).global;
+  delete (window as any).process;
+
+  // Override console methods to prevent potential security issues
+  const originalConsole = { ...console };
+  console.log = (...args: any[]) => {
+    // Only allow safe logging
+    originalConsole.log('[Renderer]', ...args);
+  };
+
+  console.warn = (...args: any[]) => {
+    originalConsole.warn('[Renderer]', ...args);
+  };
+
+  console.error = (...args: any[]) => {
+    originalConsole.error('[Renderer]', ...args);
+  };
+});
+
+// Handle unload to clean up listeners
+window.addEventListener('beforeunload', () => {
+  // Clean up any remaining listeners
+  ipcRenderer.removeAllListeners('scan-progress');
+  ipcRenderer.removeAllListeners('scan-complete');
+  ipcRenderer.removeAllListeners('error');
+});

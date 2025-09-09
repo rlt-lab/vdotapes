@@ -18,6 +18,7 @@ Implement virtual scrolling for the video grid to only render visible video elem
 ## Solution Design
 
 ### 1. Virtual Grid Container
+
 Create a virtualized grid that only renders videos within the viewport plus a buffer zone.
 
 ```javascript
@@ -33,34 +34,36 @@ class VirtualizedVideoGrid {
 
   getVisibleRange() {
     const startRow = Math.floor(this.scrollTop / this.itemHeight) - this.buffer;
-    const endRow = Math.ceil((this.scrollTop + this.viewportHeight) / this.itemHeight) + this.buffer;
-    
+    const endRow =
+      Math.ceil((this.scrollTop + this.viewportHeight) / this.itemHeight) + this.buffer;
+
     return {
       start: Math.max(0, startRow * this.itemsPerRow),
-      end: Math.min(this.totalItems, endRow * this.itemsPerRow)
+      end: Math.min(this.totalItems, endRow * this.itemsPerRow),
     };
   }
 }
 ```
 
 ### 2. Scroll-Based Rendering
+
 Only create DOM elements for videos in the visible range.
 
 ```javascript
 renderVisibleVideos() {
   const { start, end } = this.getVisibleRange();
   const visibleVideos = this.allVideos.slice(start, end);
-  
+
   // Clear existing elements
   this.videoContainer.innerHTML = '';
-  
+
   // Create spacer for scrolling
   const spacerTop = document.createElement('div');
   spacerTop.style.height = `${start * this.itemHeight / this.itemsPerRow}px`;
-  
+
   const spacerBottom = document.createElement('div');
   spacerBottom.style.height = `${(this.totalItems - end) * this.itemHeight / this.itemsPerRow}px`;
-  
+
   // Render visible videos
   visibleVideos.forEach((video, index) => {
     const element = this.createVideoElement(video, start + index);
@@ -72,6 +75,7 @@ renderVisibleVideos() {
 ## Implementation Steps
 
 ### Phase 1: Core Virtual Scrolling (Day 1)
+
 1. **Create VirtualizedVideoGrid class**
    - Calculate visible range based on scroll position
    - Manage viewport dimensions and item sizing
@@ -88,6 +92,7 @@ renderVisibleVideos() {
    - Add spacer elements for proper scrolling
 
 ### Phase 2: Optimization (Day 2)
+
 1. **Add element pooling**
    - Reuse video elements instead of recreating
    - Implement element cache for smooth scrolling
@@ -104,6 +109,7 @@ renderVisibleVideos() {
    - Handle variable item heights if needed
 
 ### Phase 3: Integration (Day 3)
+
 1. **Update existing features**
    - Modify search/filter to work with virtualization
    - Update favorites toggle functionality
@@ -122,6 +128,7 @@ renderVisibleVideos() {
 ## Technical Details
 
 ### Memory Management
+
 ```javascript
 class VideoElementPool {
   constructor(maxSize = 50) {
@@ -152,14 +159,18 @@ class VideoElementPool {
 ```
 
 ### Scroll Position Management
+
 ```javascript
 class ScrollPositionManager {
   savePosition(videoId) {
-    const index = this.allVideos.findIndex(v => v.id === videoId);
-    localStorage.setItem('lastScrollPosition', JSON.stringify({
-      index,
-      timestamp: Date.now()
-    }));
+    const index = this.allVideos.findIndex((v) => v.id === videoId);
+    localStorage.setItem(
+      'lastScrollPosition',
+      JSON.stringify({
+        index,
+        timestamp: Date.now(),
+      })
+    );
   }
 
   restorePosition() {
@@ -223,6 +234,7 @@ class ScrollPositionManager {
 ## Next Steps
 
 After completion, this enables:
+
 - **Plan 2:** Video element cleanup (easier with pooling)
 - **Plan 3:** Database indexing (can handle larger datasets)
 - **Plan 5:** Cancellable operations (UI remains responsive)

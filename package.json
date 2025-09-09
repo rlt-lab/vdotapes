@@ -3,21 +3,35 @@
   "version": "1.0.0",
   "description": "Beautiful video grid viewer and organizer",
   "author": "VDOTapes Team",
-  "main": "src/main.js",
+  "main": "dist/main/src/main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
-    "build": "electron-builder",
-    "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win",
-    "pack": "electron-builder --dir"
+    "start": "npm run build:ts && electron .",
+    "dev": "npm run build:ts && electron . --dev",
+    "build": "npm run build:ts && electron-builder",
+    "build:mac": "npm run build:ts && electron-builder --mac",
+    "build:win": "npm run build:ts && electron-builder --win",
+    "pack": "npm run build:ts && electron-builder --dir",
+    "build:ts": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc -p src/tsconfig.json",
+    "build:renderer": "tsc -p app/tsconfig.json",
+    "type-check": "npm run build:ts --noEmit",
+    "lint": "eslint \"{src,app,types}/**/*.{ts,js}\"",
+    "lint:fix": "eslint \"{src,app,types}/**/*.{ts,js}\" --fix",
+    "format": "prettier --write \"**/*.{ts,js,css,html,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,css,html,json,md}\"",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3"
   },
   "build": {
     "appId": "com.vdotapes.app",
     "productName": "VDOTapes",
     "directories": {
-      "output": "dist"
+      "output": "dist/packages"
     },
+    "files": [
+      "dist/main/**",
+      "app/**/*.{js,html,css,png}",
+      "node_modules/**/*"
+    ],
     "mac": {
       "category": "public.app-category.video",
       "icon": "app/assets/icon.png",
@@ -43,8 +57,17 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.3.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
     "electron": "^37.2.1",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
     "@playwright/test": "^1.55.0",

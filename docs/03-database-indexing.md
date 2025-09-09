@@ -19,6 +19,7 @@ Optimize database performance by adding proper indexes, optimizing queries, and 
 ## Solution Design
 
 ### 1. Strategic Index Creation
+
 Add indexes to support common query patterns identified in the application.
 
 ```sql
@@ -39,6 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_videos_updated ON videos (updated_at);
 ```
 
 ### 2. Query Optimization
+
 Rewrite complex queries to use indexes effectively and reduce JOIN complexity.
 
 ```javascript
@@ -51,27 +53,38 @@ class OptimizedVideoQueries {
 
   initializePreparedStatements() {
     // Optimized video listing with separate queries instead of complex JOINs
-    this.preparedQueries.set('videosByFolder', this.db.prepare(`
+    this.preparedQueries.set(
+      'videosByFolder',
+      this.db.prepare(`
       SELECT id, name, path, relative_path, folder, size, duration, width, height, 
              codec, bitrate, last_modified, created, added_at, updated_at
       FROM videos 
       WHERE folder = ? OR (folder IS NULL AND ? IS NULL)
       ORDER BY last_modified DESC
       LIMIT ? OFFSET ?
-    `));
+    `)
+    );
 
     // Separate query for favorites to avoid LEFT JOIN
-    this.preparedQueries.set('favoriteIds', this.db.prepare(`
+    this.preparedQueries.set(
+      'favoriteIds',
+      this.db.prepare(`
       SELECT video_id FROM favorites
-    `));
+    `)
+    );
 
     // Separate query for ratings
-    this.preparedQueries.set('videoRatings', this.db.prepare(`
+    this.preparedQueries.set(
+      'videoRatings',
+      this.db.prepare(`
       SELECT video_id, rating FROM ratings WHERE video_id IN (${Array(100).fill('?').join(',')})
-    `));
+    `)
+    );
 
     // Optimized search query
-    this.preparedQueries.set('videoSearch', this.db.prepare(`
+    this.preparedQueries.set(
+      'videoSearch',
+      this.db.prepare(`
       SELECT id, name, path, relative_path, folder, size, last_modified
       FROM videos 
       WHERE (name LIKE ? OR folder LIKE ?)
@@ -84,17 +97,20 @@ class OptimizedVideoQueries {
         END,
         last_modified DESC
       LIMIT ?
-    `));
+    `)
+    );
   }
 }
 ```
 
 ### 3. Query Result Caching
+
 Implement intelligent caching for frequently accessed data.
 
 ```javascript
 class QueryCache {
-  constructor(maxSize = 100, ttl = 300000) { // 5 minutes TTL
+  constructor(maxSize = 100, ttl = 300000) {
+    // 5 minutes TTL
     this.cache = new Map();
     this.maxSize = maxSize;
     this.ttl = ttl;
@@ -108,16 +124,16 @@ class QueryCache {
   get(query, params) {
     const key = this.generateKey(query, params);
     const cached = this.cache.get(key);
-    
+
     if (!cached) return null;
-    
+
     // Check TTL
     if (Date.now() - cached.timestamp > this.ttl) {
       this.cache.delete(key);
       this.accessTimes.delete(key);
       return null;
     }
-    
+
     // Update access time for LRU
     this.accessTimes.set(key, Date.now());
     return cached.data;
@@ -125,15 +141,15 @@ class QueryCache {
 
   set(query, params, data) {
     const key = this.generateKey(query, params);
-    
+
     // Implement LRU eviction
     if (this.cache.size >= this.maxSize) {
       this.evictLRU();
     }
-    
+
     this.cache.set(key, {
       data: this.deepClone(data),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     this.accessTimes.set(key, Date.now());
   }
@@ -141,14 +157,14 @@ class QueryCache {
   evictLRU() {
     let oldestKey = null;
     let oldestTime = Date.now();
-    
+
     for (const [key, time] of this.accessTimes) {
       if (time < oldestTime) {
         oldestTime = time;
         oldestKey = key;
       }
     }
-    
+
     if (oldestKey) {
       this.cache.delete(oldestKey);
       this.accessTimes.delete(oldestKey);
@@ -176,6 +192,7 @@ class QueryCache {
 ### Phase 1: Index Creation and Migration (2-3 hours)
 
 1. **Create database migration system**
+
 ```javascript
 class DatabaseMigration {
   constructor(db) {
@@ -185,7 +202,9 @@ class DatabaseMigration {
 
   getCurrentVersion() {
     try {
-      const result = this.db.prepare('SELECT value FROM settings WHERE key = ?').get('schema_version');
+      const result = this.db
+        .prepare('SELECT value FROM settings WHERE key = ?')
+        .get('schema_version');
       return result ? parseInt(result.value) : 0;
     } catch (error) {
       return 0;
@@ -196,7 +215,7 @@ class DatabaseMigration {
     const migrations = [
       this.migration001_addIndexes,
       this.migration002_optimizeSchema,
-      this.migration003_addPerformanceIndexes
+      this.migration003_addPerformanceIndexes,
     ];
 
     for (let i = this.currentVersion; i < migrations.length; i++) {
@@ -213,20 +232,22 @@ class DatabaseMigration {
       'CREATE INDEX IF NOT EXISTS idx_videos_folder_modified ON videos (folder, last_modified DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_size_desc ON videos (size DESC)',
       'CREATE INDEX IF NOT EXISTS idx_favorites_added ON favorites (added_at DESC)',
-      'CREATE INDEX IF NOT EXISTS idx_videos_updated ON videos (updated_at)'
+      'CREATE INDEX IF NOT EXISTS idx_videos_updated ON videos (updated_at)',
     ];
 
-    indexes.forEach(sql => this.db.exec(sql));
+    indexes.forEach((sql) => this.db.exec(sql));
   }
 
   setSchemaVersion(version) {
-    this.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+    this.db
+      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
       .run('schema_version', version.toString());
   }
 }
 ```
 
 2. **Add performance monitoring**
+
 ```javascript
 class QueryPerformanceMonitor {
   constructor() {
@@ -239,13 +260,13 @@ class QueryPerformanceMonitor {
       const start = performance.now();
       const result = queryFn.apply(this, args);
       const duration = performance.now() - start;
-      
+
       this.recordQuery(queryName, duration);
-      
+
       if (duration > this.slowQueryThreshold) {
         console.warn(`Slow query detected: ${queryName} took ${duration.toFixed(2)}ms`);
       }
-      
+
       return result;
     };
   }
@@ -269,6 +290,7 @@ class QueryPerformanceMonitor {
 ### Phase 2: Query Optimization (3-4 hours)
 
 1. **Implement optimized video queries**
+
 ```javascript
 // In database.js - replace getVideos method
 async getVideosOptimized(filters = {}) {
@@ -315,7 +337,7 @@ enrichVideosWithMetadata(videos, filters) {
   // Get ratings in batch
   const videoIds = videos.map(v => v.id);
   const ratings = new Map();
-  
+
   // Process in chunks of 100 to avoid SQL parameter limits
   for (let i = 0; i < videoIds.length; i += 100) {
     const chunk = videoIds.slice(i, i + 100);
@@ -337,6 +359,7 @@ enrichVideosWithMetadata(videos, filters) {
 ```
 
 2. **Implement specialized queries**
+
 ```javascript
 getFavoritesOnlyQuery(filters, params) {
   let query = `
@@ -358,7 +381,7 @@ getFavoritesOnlyQuery(filters, params) {
 
   // Add optimal sorting
   query += this.getSortClause(filters.sortBy, filters.sortOrder);
-  
+
   if (filters.limit) {
     query += ' LIMIT ?';
     params.push(filters.limit);
@@ -389,6 +412,7 @@ getSortClause(sortBy, sortOrder = 'ASC') {
 ### Phase 3: Caching Integration (2-3 hours)
 
 1. **Integrate caching with database operations**
+
 ```javascript
 // Update VideoDatabase class
 class VideoDatabase {
@@ -428,6 +452,7 @@ class VideoDatabase {
 ```
 
 2. **Add cache warming strategies**
+
 ```javascript
 class CacheWarmer {
   constructor(database) {
@@ -443,7 +468,7 @@ class CacheWarmer {
     ];
 
     const folders = await this.database.getFolders();
-    folders.slice(0, 5).forEach(folder => {
+    folders.slice(0, 5).forEach((folder) => {
       commonFilters.push({ folder }); // Top folders
     });
 
@@ -507,11 +532,11 @@ class DatabaseMetrics {
       queryStats: this.performanceMonitor.queryStats,
       cacheStats: {
         size: this.queryCache.cache.size,
-        hitRate: this.queryCache.hitRate || 0
+        hitRate: this.queryCache.hitRate || 0,
       },
-      slowQueries: this.performanceMonitor.getSlowQueries()
+      slowQueries: this.performanceMonitor.getSlowQueries(),
     };
-    
+
     console.log('Database Performance Report:', report);
     return report;
   }
@@ -527,6 +552,7 @@ class DatabaseMetrics {
 ## Next Steps
 
 After completion, this enables:
+
 - **Plan 4:** Video metadata extraction (faster database operations)
 - **Plan 5:** Cancellable operations (database won't be bottleneck)
 - Advanced features like search, filtering, and sorting at scale

@@ -28,11 +28,13 @@ npm run pack         # Unpacked build for testing
 ## Architecture Overview
 
 ### Process Architecture
+
 - **Main Process** (main.js): Electron backend with window management and security policies
 - **Renderer Process** (app/): Frontend UI running in isolated context
 - **Preload Script** (preload.js): Secure IPC bridge exposing limited APIs
 
 ### Security Model
+
 - Context isolation enabled
 - Node integration disabled
 - All IPC communication through secure contextBridge API
@@ -41,17 +43,20 @@ npm run pack         # Unpacked build for testing
 ### Key Components
 
 **Frontend (app/)**:
+
 - `renderer.js`: VdoTapesApp class managing UI state and video grid
 - Uses Intersection Observer for lazy loading and auto-preview
 - Responsive grid layout (1-12 columns adjustable)
 
 **Backend Modules (src/)**:
+
 - `database.js`: SQLite operations with migration support
 - `video-scanner.js`: Scans directories for video files (MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, M4V)
 - `ipc-handlers.js`: Backend API implementations
 - `thumbnail-gen.js`: Thumbnail generation capabilities (not fully implemented)
 
 **IPC API Surface**:
+
 - `vdoTapesAPI.selectVideoFolder()`: Opens folder picker
 - `vdoTapesAPI.getVideos()`: Retrieves video list from database
 - `vdoTapesAPI.updateFavorite()`: Toggle favorite status
@@ -59,6 +64,7 @@ npm run pack         # Unpacked build for testing
 - `vdoTapesAPI.getSubfolders()`: Get folder structure
 
 ### Database Schema
+
 - `videos`: Video metadata (path, stats, folder info)
 - `favorites`: User's favorited videos
 - `settings`: Persistent app settings
@@ -67,6 +73,7 @@ npm run pack         # Unpacked build for testing
 ## Testing Status
 
 Currently no testing framework is implemented. When adding tests, consider:
+
 - Unit tests for video-scanner.js and database.js modules
 - Integration tests for IPC communication
 - UI tests for renderer process functionality
@@ -82,10 +89,12 @@ Currently no testing framework is implemented. When adding tests, consider:
 ## Current Feature Development
 
 The project has active feature development documented in:
+
 - `features_roadmap.md`: Planned features (context menus, multi-view, etc.)
 - Recent commits show active development on UI improvements and dependency updates
 
 When implementing new features:
+
 1. Follow existing IPC pattern for main/renderer communication
 2. Update database schema if needed (see migration examples in database.js)
 3. Maintain security model - no direct file system access from renderer
@@ -96,6 +105,7 @@ When implementing new features:
 This project has Playwright MCP server configured for visual testing and UI design work. When working on UI changes:
 
 ### Taking Screenshots for Reference
+
 Use the Playwright MCP server to capture current UI state before making changes:
 
 1. **Launch the app**: Run `npm run dev` to start the application
@@ -103,8 +113,9 @@ Use the Playwright MCP server to capture current UI state before making changes:
 3. **Document changes**: Screenshots help compare before/after states during UI development
 
 ### Common UI Testing Scenarios
+
 - Grid layout responsiveness (1-12 columns)
-- Video preview functionality 
+- Video preview functionality
 - Toolbar and control interactions
 - Filter and sort UI elements
 - Favorites and tagging interfaces

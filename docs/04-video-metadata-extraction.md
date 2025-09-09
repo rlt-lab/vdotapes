@@ -19,6 +19,7 @@ Implement real video metadata extraction using FFprobe/FFmpeg to provide accurat
 ## Solution Design
 
 ### 1. FFprobe Integration
+
 Use FFprobe (part of FFmpeg) to extract comprehensive video metadata.
 
 ```javascript
@@ -38,7 +39,7 @@ class VideoMetadataExtractor {
       '/usr/bin/ffprobe',
       '/usr/local/bin/ffprobe',
       path.join(process.resourcesPath, 'ffprobe'), // Bundled with app
-      path.join(__dirname, '../bin/ffprobe') // Local bin directory
+      path.join(__dirname, '../bin/ffprobe'), // Local bin directory
     ];
 
     for (const probePath of possiblePaths) {
@@ -50,7 +51,9 @@ class VideoMetadataExtractor {
       }
     }
 
-    throw new Error('FFprobe not found. Please install FFmpeg or bundle FFprobe with the application.');
+    throw new Error(
+      'FFprobe not found. Please install FFmpeg or bundle FFprobe with the application.'
+    );
   }
 
   async extractMetadata(videoPath) {
@@ -73,6 +76,7 @@ class VideoMetadataExtractor {
 ```
 
 ### 2. Robust Metadata Extraction
+
 Handle various video formats and edge cases gracefully.
 
 ```javascript
@@ -169,6 +173,7 @@ parseRotation(tags) {
 ```
 
 ### 3. Batch Processing and Queue Management
+
 Process multiple videos efficiently without blocking the UI.
 
 ```javascript
@@ -193,7 +198,7 @@ class MetadataExtractionQueue {
   }
 
   async processVideos(videoPaths) {
-    const promises = videoPaths.map(path => this.processVideo(path));
+    const promises = videoPaths.map((path) => this.processVideo(path));
     return Promise.allSettled(promises);
   }
 
@@ -225,14 +230,14 @@ class MetadataExtractionQueue {
   emitProgress() {
     const progressData = {
       ...this.progress,
-      percentage: (this.progress.completed / this.progress.total) * 100
+      percentage: (this.progress.completed / this.progress.total) * 100,
     };
-    
+
     // Emit to main process for UI updates
     if (typeof process !== 'undefined' && process.send) {
       process.send({
         type: 'metadata-extraction-progress',
-        data: progressData
+        data: progressData,
       });
     }
   }
@@ -244,6 +249,7 @@ class MetadataExtractionQueue {
 ```
 
 ### 4. Integration with Video Scanner
+
 Enhance the video scanning process to include metadata extraction.
 
 ```javascript
@@ -256,16 +262,16 @@ class VideoScanner {
 
   async scanDirectory(folderPath, options = {}) {
     const { extractMetadata = true, onProgress } = options;
-    
+
     try {
       // First pass: collect all video files
       const videoFiles = await this.collectVideoFiles(folderPath);
-      
+
       if (extractMetadata && videoFiles.length > 0) {
         // Second pass: extract metadata
         await this.extractMetadataForFiles(videoFiles, onProgress);
       }
-      
+
       return videoFiles;
     } catch (error) {
       console.error('Video scanning failed:', error);
@@ -274,15 +280,15 @@ class VideoScanner {
   }
 
   async extractMetadataForFiles(videoFiles, onProgress) {
-    const paths = videoFiles.map(file => file.path);
-    
+    const paths = videoFiles.map((file) => file.path);
+
     // Set up progress callback
     if (onProgress) {
       this.extractionQueue.onProgress = onProgress;
     }
 
     const results = await this.extractionQueue.processVideos(paths);
-    
+
     // Update video objects with metadata
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
@@ -308,7 +314,7 @@ class VideoScanner {
       hasAudio: true, // Assume true
       formatName: null,
       title: null,
-      creationTime: null
+      creationTime: null,
     };
   }
 }
@@ -369,50 +375,51 @@ class VideoScanner {
 ## Technical Implementation Details
 
 ### FFprobe Output Processing
+
 ```javascript
 class MetadataParser {
   static parse(ffprobeOutput) {
     const data = JSON.parse(ffprobeOutput);
     const format = data.format || {};
-    const videoStream = data.streams?.find(s => s.codec_type === 'video');
-    const audioStream = data.streams?.find(s => s.codec_type === 'audio');
+    const videoStream = data.streams?.find((s) => s.codec_type === 'video');
+    const audioStream = data.streams?.find((s) => s.codec_type === 'audio');
 
     return {
       // Basic video properties
       duration: this.parseDuration(format.duration),
       bitrate: this.parseBitrate(format.bit_rate),
       fileSize: parseInt(format.size) || null,
-      
+
       // Video stream properties
       width: parseInt(videoStream?.width) || null,
       height: parseInt(videoStream?.height) || null,
       codec: videoStream?.codec_name || null,
       pixelFormat: videoStream?.pix_fmt || null,
       frameRate: this.parseFrameRate(videoStream?.r_frame_rate),
-      
+
       // Calculated properties
       aspectRatio: this.calculateAspectRatio(videoStream?.width, videoStream?.height),
       resolution: this.getResolutionCategory(videoStream?.width, videoStream?.height),
-      
+
       // Audio properties
       hasAudio: !!audioStream,
       audioCodec: audioStream?.codec_name || null,
       audioChannels: parseInt(audioStream?.channels) || null,
-      
+
       // Metadata
       title: format.tags?.title || null,
       creationTime: this.parseCreationTime(format.tags?.creation_time),
       formatName: format.format_name || null,
-      
+
       // Quality indicators
       quality: this.assessQuality(videoStream, format),
-      isValid: this.validateVideo(videoStream, format)
+      isValid: this.validateVideo(videoStream, format),
     };
   }
 
   static getResolutionCategory(width, height) {
     if (!width || !height) return null;
-    
+
     const pixels = width * height;
     if (pixels >= 7680 * 4320) return '8K';
     if (pixels >= 3840 * 2160) return '4K';
@@ -424,15 +431,15 @@ class MetadataParser {
 
   static assessQuality(videoStream, format) {
     if (!videoStream || !format) return 'unknown';
-    
+
     const bitrate = parseInt(format.bit_rate) || 0;
     const width = parseInt(videoStream.width) || 0;
     const height = parseInt(videoStream.height) || 0;
-    
+
     // Simple quality assessment based on bitrate per pixel
     const pixels = width * height;
-    const bitratePerPixel = pixels ? (bitrate / pixels) : 0;
-    
+    const bitratePerPixel = pixels ? bitrate / pixels : 0;
+
     if (bitratePerPixel > 0.1) return 'high';
     if (bitratePerPixel > 0.05) return 'medium';
     return 'low';
@@ -441,6 +448,7 @@ class MetadataParser {
 ```
 
 ### Progress Reporting
+
 ```javascript
 class ExtractionProgressReporter {
   constructor() {
@@ -462,10 +470,10 @@ class ExtractionProgressReporter {
       failed: data.failed,
       percentage: Math.round((data.completed / data.total) * 100),
       currentFile: data.currentFile || null,
-      estimatedTimeRemaining: this.calculateETA(data)
+      estimatedTimeRemaining: this.calculateETA(data),
     };
 
-    this.listeners.forEach(callback => {
+    this.listeners.forEach((callback) => {
       try {
         callback(progressInfo);
       } catch (error) {
@@ -476,11 +484,11 @@ class ExtractionProgressReporter {
 
   calculateETA(data) {
     if (data.completed === 0) return null;
-    
+
     const elapsed = Date.now() - data.startTime;
     const avgTimePerFile = elapsed / data.completed;
     const remaining = data.total - data.completed;
-    
+
     return Math.round((remaining * avgTimePerFile) / 1000); // seconds
   }
 }
@@ -536,11 +544,13 @@ class ExtractionProgressReporter {
 ## Deployment Considerations
 
 ### FFprobe Distribution
+
 - **Option 1:** Require users to install FFmpeg
 - **Option 2:** Bundle FFprobe with application
 - **Option 3:** Provide installation guide and auto-detection
 
 ### Recommended: Bundle FFprobe
+
 ```javascript
 // In electron-builder configuration
 "extraResources": [
@@ -561,6 +571,7 @@ class ExtractionProgressReporter {
 ## Next Steps
 
 After completion, this enables:
+
 - **Plan 7:** Thumbnail generation (using extracted metadata)
 - Advanced video search and filtering
 - Quality-based sorting and organization
