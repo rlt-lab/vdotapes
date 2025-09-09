@@ -1,38 +1,38 @@
-# VDOTapes 🎬
+# VDOTapes
 
 **High-performance video viewer with Instagram-style browsing**
 
-VDOTapes is a beautiful, cross-platform desktop application for browsing and organizing your video collections. Built with Electron, it provides a responsive grid layout with automatic video previews, smart filtering, and persistent favorites.
+VDOTapes is a cross-platform desktop application for browsing and organizing your video collections. Built with Electron, it provides a responsive grid layout with automatic video previews, smart filtering, and persistent favorites.
 
-## ✨ Features
+## Features
 
-### 🎯 Core Functionality
+### Core Functionality
 
-- **📁 Folder Selection** - Browse and scan video collections from any directory
-- **🎬 Multi-Format Support** - MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, M4V
-- **📱 Responsive Grid** - Instagram-style layout with customizable columns (1-12)
-- **⚡ Auto-Preview** - Videos automatically play when scrolled into view
-- **💾 Smart Looping** - 5-second preview segments for long videos
-- **🔍 Advanced Filtering** - Filter by folder, sort by date/name, favorites-only view
-- **🎲 Shuffle Mode** - Random video browsing for discovery
-- **❤️ Favorites System** - Mark and filter your favorite videos
-- **💾 Persistent Settings** - Remembers your preferences across sessions
+- **Folder Selection** - Browse and scan video collections from any directory
+- **Multi-Format Support** - MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, M4V
+- **Responsive Grid** - Instagram-style layout with customizable columns (1-12)
+- **Auto-Preview** - Videos automatically play when scrolled into view
+- **Smart Looping** - 5-second preview segments for long videos
+- **Advanced Filtering** - Filter by folder, sort by date/name, favorites-only view
+- **Shuffle Mode** - Random video browsing for discovery
+- **Favorites System** - Mark and filter your favorite videos
+- **Persistent Settings** - Remembers your preferences across sessions
 
-### 🛡️ Security & Performance
+### Security & Performance
 
-- **🔒 Secure Architecture** - Context isolation, disabled Node integration
-- **⚡ High Performance** - Lazy loading, intersection observer, optimized database
-- **💾 SQLite Database** - Fast, reliable storage with WAL mode
-- **🎯 Memory Efficient** - Proper cleanup and blob URL management
+- **Secure Architecture** - Context isolation, disabled Node integration
+- **High Performance** - Lazy loading, intersection observer, optimized database
+- **SQLite Database** - Fast, reliable storage with WAL mode
+- **Memory Efficient** - Proper cleanup and blob URL management
 
-### 🎨 User Experience
+### User Experience
 
-- **🌙 Dark Theme** - Modern, eye-friendly interface
-- **📱 Touch Support** - Mobile-friendly responsive design
-- **♿ Accessible** - Proper contrast and focus states
-- **🔄 Smooth Animations** - Polished transitions and hover effects
+- **Dark Theme** - Modern, eye-friendly interface
+- **Touch Support** - Mobile-friendly responsive design
+- **Accessible** - Proper contrast and focus states
+- **Smooth Animations** - Polished transitions and hover effects
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Option 1: Download Pre-built (Recommended)
 
@@ -62,19 +62,19 @@ npm run build        # All platforms
 ### First Launch
 
 1. **Open VDOTapes** from your Applications/Start Menu (or run the built executable)
-2. **Click "📁 Select Video Folder"** to choose your video collection
+2. **Click "Select Video Folder"** to choose your video collection
 3. **Wait for scan** - the app will index your videos
 4. **Start browsing** - videos appear in a beautiful grid layout
 5. **Customize** - adjust grid size, filters, and preferences
 
-## 🎮 Usage Guide
+## Usage Guide
 
 ### Basic Navigation
 
 - **Grid Browsing** - Scroll through your video collection
 - **Auto-Play** - Videos preview automatically when visible
 - **Click to Expand** - Click any video for full-screen view
-- **Close Expanded** - Press ESC or click the × button
+- **Close Expanded** - Press ESC or click the close button
 
 ### Filtering & Sorting
 
@@ -90,7 +90,7 @@ npm run build        # All platforms
 - **Settings** - Your preferences are automatically saved
 - **Responsive** - Layout adapts to window size
 
-## 🛠️ Development
+## Development
 
 ### Prerequisites
 
@@ -167,7 +167,7 @@ vdotapes/
 - **Video Scanner** (`src/video-scanner.ts`) - Multi-format file detection
 - **IPC Handlers** (`src/ipc-handlers.ts`) - Backend API endpoints
 
-## 🔧 Configuration
+## Configuration
 
 ### Build Configuration
 
@@ -192,7 +192,7 @@ The app is configured for cross-platform distribution:
 - **thumbnails** - Thumbnail storage (future feature)
 - **settings** - User preferences and app state
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -228,7 +228,7 @@ Run with development tools:
 npm run dev
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
@@ -243,7 +243,7 @@ npm run dev
 - Update documentation
 - Test on multiple platforms
 
-## 📋 Roadmap
+## Roadmap
 
 ### Immediate Goals
 
@@ -268,18 +268,18 @@ npm run dev
 - [ ] **Advanced Filters** - Date ranges, file size, duration filters
 - [ ] **Video Analytics** - Viewing statistics and insights
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Electron** - Cross-platform desktop framework
 - **better-sqlite3** - High-performance database
 - **Canvas** - Graphics processing capabilities
 - **Electron Builder** - Packaging and distribution
 
-## 📞 Support
+## Support
 
 - **Issues** - [GitHub Issues](https://github.com/yourusername/vdotapes/issues)
 - **Discussions** - [GitHub Discussions](https://github.com/yourusername/vdotapes/discussions)
@@ -287,4 +287,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**VDOTapes** - Making video browsing beautiful and efficient since 2024 🎬✨
+**VDOTapes** - Making video browsing beautiful and efficient since 2024
