@@ -12,7 +12,7 @@ let ipcHandlers: IPCHandlers | null = null;
 // app.allowRendererProcessReuse = true; // Deprecated in newer Electron versions
 
 // Set app name
-app.setName('VDOTapes');
+app.setName('vdotapes');
 
 interface FolderSelectionResult {
   readonly success: boolean;

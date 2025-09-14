@@ -24,6 +24,7 @@ class VdoTapesApp {
     this.previousViewState = { folder: '', sort: 'folder' };
     this.currentExpandedIndex = -1; // Track which video is currently expanded
 
+
     // Smart loading for all collections (no heavy virtualization)
     this.smartLoader = null;
     this.useSmartLoading = true;
@@ -181,6 +182,7 @@ class VdoTapesApp {
     document.getElementById('shuffleBtn').addEventListener('click', () => {
       this.shuffleVideos();
     });
+
 
     // Favorites toggle
     document.getElementById('favoritesBtn').addEventListener('click', () => {
@@ -560,6 +562,7 @@ class VdoTapesApp {
     setTimeout(() => btn.classList.remove('shuffling'), 500);
   }
 
+
   async toggleFavoritesView() {
     if (!this.showingFavoritesOnly) {
       this.previousViewState = {
@@ -586,6 +589,7 @@ class VdoTapesApp {
   }
 
   applyCurrentFilters() {
+
     let filtered = [...this.allVideos];
 
     // Apply folder filter (works for both sort modes)
@@ -1060,6 +1064,7 @@ class VdoTapesApp {
     if (metaLength) metaLength.textContent = '';
     const metaFilename = document.getElementById('metaFilename');
     if (metaFilename) metaFilename.textContent = '';
+
   }
 
   navigateExpanded(direction) {

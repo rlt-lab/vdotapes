@@ -1,8 +1,9 @@
 import type { VideoId } from '../../../types/core';
 import type { DatabaseCore } from '../core/DatabaseCore';
 import type { TransactionManager } from '../core/TransactionManager';
-import type { UserDataOperations } from './UserDataOperations';
+
 import type { TagOperations } from './TagOperations';
+import type { UserDataOperations } from './UserDataOperations';
 
 export interface BackupOperationsCache {
   invalidate(key: string): void;

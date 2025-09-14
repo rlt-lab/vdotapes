@@ -55,7 +55,7 @@ export class VideoOperations {
     const monitoredQuery = this.monitor.wrapQuery('getVideoById', () => {
       try {
         const db = this.core.getConnection();
-        const stmt = db.prepare(`SELECT * FROM videos WHERE id = ?`);
+        const stmt = db.prepare('SELECT * FROM videos WHERE id = ?');
         const video = stmt.get(id) as VideoTableRow | undefined;
         return video || null;
       } catch (error) {
@@ -276,7 +276,7 @@ export class VideoOperations {
         const db = this.core.getConnection();
 
         // Check if video with this ID already exists
-        const existingStmt = db.prepare(`SELECT path FROM videos WHERE id = ?`);
+        const existingStmt = db.prepare('SELECT path FROM videos WHERE id = ?');
         const existing = existingStmt.get(video.id);
 
         if (existing) {

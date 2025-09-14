@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+
 import type { DatabaseCore } from './DatabaseCore';
 
 export interface TransactionContext {

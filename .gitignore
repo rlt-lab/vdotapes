@@ -51,3 +51,6 @@ coverage/
 
 # Electron specific
 app-update.yml
+
+# Test video files
+testvids/

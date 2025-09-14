@@ -21,11 +21,11 @@ import { DatabaseCore } from './core/DatabaseCore';
 import { TransactionManager } from './core/TransactionManager';
 
 // Operation modules
-import { VideoOperations } from './operations/VideoOperations';
-import { UserDataOperations } from './operations/UserDataOperations';
-import { TagOperations } from './operations/TagOperations';
-import { SettingsOperations } from './operations/SettingsOperations';
 import { BackupOperations } from './operations/BackupOperations';
+import { SettingsOperations } from './operations/SettingsOperations';
+import { TagOperations } from './operations/TagOperations';
+import { UserDataOperations } from './operations/UserDataOperations';
+import { VideoOperations } from './operations/VideoOperations';
 
 // Performance and caching (existing modules)
 // TODO: Convert these CommonJS modules to ES modules
