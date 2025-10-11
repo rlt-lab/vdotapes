@@ -1,0 +1,14 @@
+/Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/deps/serde-ae29584b9e92b8be.d: /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/build/serde-b7d41dff904db724/out/private.rs
+
+/Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/deps/libserde-ae29584b9e92b8be.rlib: /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/build/serde-b7d41dff904db724/out/private.rs
+
+/Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/deps/libserde-ae29584b9e92b8be.rmeta: /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/build/serde-b7d41dff904db724/out/private.rs
+
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/build/serde-b7d41dff904db724/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/rlt/dev/vdotapes/src/video-grid-wasm/target/wasm32-unknown-unknown/release/build/serde-b7d41dff904db724/out

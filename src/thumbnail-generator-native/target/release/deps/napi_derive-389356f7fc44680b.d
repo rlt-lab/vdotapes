@@ -1,0 +1,11 @@
+/Users/rlt/dev/vdotapes/src/thumbnail-generator-native/target/release/deps/napi_derive-389356f7fc44680b.d: /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/lib.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/typedef.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/typedef/type_def.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/napi.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/parser/mod.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/parser/attrs.rs
+
+/Users/rlt/dev/vdotapes/src/thumbnail-generator-native/target/release/deps/libnapi_derive-389356f7fc44680b.dylib: /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/lib.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/typedef.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/typedef/type_def.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/napi.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/parser/mod.rs /Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/parser/attrs.rs
+
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/lib.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/typedef.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/typedef/type_def.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/expand/napi.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/parser/mod.rs:
+/Users/rlt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/napi-derive-3.2.5/src/parser/attrs.rs:

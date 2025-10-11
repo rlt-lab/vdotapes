@@ -5,6 +5,8 @@ class VdoTapesApp {
     this.SETTINGS_LOAD_DELAY = 1000;
     this.PREVIEW_LOOP_DURATION = 5; // seconds
     this.LOAD_TIMEOUT = 10000; // 10 seconds
+    this.MAX_VIDEO_LOAD_RETRIES = 3; // Maximum retry attempts for failed video loads
+    this.RETRY_BASE_DELAY = 1000; // Base delay for exponential backoff (1 second)
 
     this.allVideos = [];
     this.displayedVideos = [];
@@ -24,6 +26,9 @@ class VdoTapesApp {
     this.previousViewState = { folder: '', sort: 'folder' };
     this.currentExpandedIndex = -1; // Track which video is currently expanded
 
+    // WASM Grid Engine (high-performance filtering/sorting/viewport)
+    this.gridEngine = null;
+    this.useWasmEngine = false;
 
     // Smart loading for all collections (no heavy virtualization)
     this.smartLoader = null;
@@ -52,6 +57,7 @@ class VdoTapesApp {
     this.setupEventListeners();
     this.setupIntersectionObserver();
     this.setupSmartLoader();
+    this.setupWasmEngine();
     this.updateGridSize();
     this.updateFavoritesCount();
 
@@ -60,6 +66,28 @@ class VdoTapesApp {
     // Clean up when page unloads
     window.addEventListener('beforeunload', () => {
       this.saveSettings();
+    });
+  }
+
+  setupWasmEngine() {
+    // Listen for WASM module load success
+    window.addEventListener('wasm-ready', () => {
+      try {
+        if (window.VideoGridEngine) {
+          this.gridEngine = new window.VideoGridEngine(30); // max 30 active videos
+          this.useWasmEngine = true;
+          console.log('✅ WASM Grid Engine initialized successfully!');
+        }
+      } catch (error) {
+        console.error('Failed to initialize WASM engine:', error);
+        this.useWasmEngine = false;
+      }
+    });
+
+    // Listen for WASM module load failure
+    window.addEventListener('wasm-failed', () => {
+      console.warn('WASM module failed to load, using JavaScript fallback');
+      this.useWasmEngine = false;
     });
   }
 
@@ -330,6 +358,9 @@ class VdoTapesApp {
     // Responsive handling
     window.addEventListener('resize', () => this.handleResize());
 
+    // Scroll handling for WASM viewport updates
+    this.setupScrollHandler();
+
     // Event delegation for favorite buttons
     document.addEventListener('click', (e) => {
       if (e.target.closest('.video-favorite')) {
@@ -360,6 +391,52 @@ class VdoTapesApp {
     } catch (error) {
       console.error('Error setting up smart loader:', error);
       this.smartLoader = null;
+    }
+  }
+
+  setupScrollHandler() {
+    let scrollTimeout;
+    const handleScroll = () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        // Only update viewport if using WASM engine
+        if (this.useWasmEngine && this.gridEngine && this.displayedVideos.length > 0) {
+          this.updateViewport();
+        }
+      }, 16); // ~60fps
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+  }
+
+  updateViewport() {
+    if (!this.useWasmEngine || !this.gridEngine) return;
+
+    try {
+      // Calculate new viewport
+      const reconciliation = this.gridEngine.calculateViewport(
+        window.pageYOffset,
+        window.innerHeight,
+        300, // item height
+        this.gridCols,
+        2    // buffer rows
+      );
+
+      // Apply any DOM changes needed
+      this.applyDomOperations(reconciliation.operations);
+
+      // Update video loading
+      const toLoad = this.gridEngine.getVideosToLoad();
+      const toUnload = this.gridEngine.getVideosToUnload(30);
+
+      toUnload.forEach(videoId => this.unloadVideoById(videoId));
+      toLoad.forEach(videoId => this.loadVideoById(videoId));
+
+      // Attach listeners to any new items
+      this.attachVideoItemListeners();
+
+    } catch (error) {
+      console.error('Error updating viewport:', error);
     }
   }
 
@@ -416,18 +493,6 @@ class VdoTapesApp {
         this.allVideos = result.videos;
         this.folders = result.folders;
         this.populateFolderDropdown();
-        this.applyCurrentFilters();
-        this.hideProgress();
-        this.showFilterControls();
-        this.updateStatusMessage();
-
-        // Show metadata extraction summary if available
-        if (result.metadataStats) {
-          const stats = result.metadataStats;
-          const message = `Scan complete: ${stats.totalVideos} videos, ${stats.withValidMetadata} with metadata`;
-          this.showStatus(message);
-          console.log('Metadata extraction stats:', stats);
-        }
 
         // Load videos from database with favorite status
         try {
@@ -445,6 +510,50 @@ class VdoTapesApp {
         } catch (error) {
           console.error('Error loading videos from database:', error);
           // Continue with scanned videos if database loading fails
+        }
+
+        // Load videos into WASM engine if available
+        if (this.useWasmEngine && this.gridEngine) {
+          try {
+            // Convert videos to WASM-compatible format
+            const wasmVideos = this.allVideos.map(v => ({
+              id: v.id,
+              name: v.name,
+              path: v.path,
+              folder: v.folder || null,
+              size: v.size || 0,
+              last_modified: v.lastModified || 0,
+              duration: v.duration || null,
+              width: v.width || null,
+              height: v.height || null,
+              resolution: v.resolution || null,
+              codec: v.codec || null,
+              bitrate: v.bitrate || null,
+              is_favorite: v.isFavorite === true,
+              is_hidden: this.hiddenFiles.has(v.id)
+            }));
+
+            this.gridEngine.setVideos(wasmVideos);
+            this.gridEngine.updateFavorites(Array.from(this.favorites));
+            this.gridEngine.updateHidden(Array.from(this.hiddenFiles));
+            console.log(`Loaded ${wasmVideos.length} videos into WASM engine`);
+          } catch (error) {
+            console.error('Error loading videos into WASM engine:', error);
+            this.useWasmEngine = false;
+          }
+        }
+
+        this.applyCurrentFilters();
+        this.hideProgress();
+        this.showFilterControls();
+        this.updateStatusMessage();
+
+        // Show metadata extraction summary if available
+        if (result.metadataStats) {
+          const stats = result.metadataStats;
+          const message = `Scan complete: ${stats.totalVideos} videos, ${stats.withValidMetadata} with metadata`;
+          this.showStatus(message);
+          console.log('Metadata extraction stats:', stats);
         }
 
         // Save the folder path for next time and other settings
@@ -589,7 +698,36 @@ class VdoTapesApp {
   }
 
   applyCurrentFilters() {
+    // Use WASM engine if available for high-performance filtering and sorting
+    if (this.useWasmEngine && this.gridEngine) {
+      try {
+        // Apply filters
+        const filterCount = this.gridEngine.applyFilters({
+          folder: this.currentFolder || null,
+          favorites_only: this.showingFavoritesOnly,
+          hidden_only: this.showingHiddenOnly,
+          show_hidden: false
+        });
 
+        // Apply sorting
+        this.gridEngine.setSortMode(this.currentSort);
+
+        // Get filtered videos
+        const filteredVideos = this.gridEngine.getFilteredVideos();
+
+        // Convert back to JavaScript objects
+        this.displayedVideos = filteredVideos;
+
+        console.log(`WASM filtered to ${filterCount} videos`);
+        this.renderGrid();
+        return;
+      } catch (error) {
+        console.error('Error using WASM engine, falling back to JS:', error);
+        this.useWasmEngine = false;
+      }
+    }
+
+    // JavaScript fallback
     let filtered = [...this.allVideos];
 
     // Apply folder filter (works for both sort modes)
@@ -651,8 +789,191 @@ class VdoTapesApp {
       return;
     }
 
-    // Always use traditional grid with smart loading
-    this.renderSmartGrid();
+    // Use WASM-powered rendering if available (Phase 2)
+    if (this.useWasmEngine && this.gridEngine) {
+      this.renderWasmGrid();
+    } else {
+      // Fallback to traditional grid with smart loading
+      this.renderSmartGrid();
+    }
+  }
+
+  renderWasmGrid() {
+    // Ensure container exists
+    let container = document.querySelector('.video-grid');
+
+    if (!container) {
+      // Initial render - create container
+      document.getElementById('content').innerHTML = '<div class="video-grid"></div>';
+      container = document.querySelector('.video-grid');
+      this.updateGridLayout();
+    }
+
+    try {
+      // Calculate viewport using WASM
+      const reconciliation = this.gridEngine.calculateViewport(
+        window.pageYOffset,
+        window.innerHeight,
+        300, // item height (estimated)
+        this.gridCols,
+        2    // buffer rows above and below viewport
+      );
+
+      // Apply minimal DOM operations (incremental updates)
+      this.applyDomOperations(reconciliation.operations);
+
+      // Get videos to load/unload based on viewport
+      const toLoad = this.gridEngine.getVideosToLoad();
+      const toUnload = this.gridEngine.getVideosToUnload(30);
+
+      // Unload videos first to free memory
+      toUnload.forEach(videoId => {
+        this.unloadVideoById(videoId);
+      });
+
+      // Load visible videos
+      toLoad.forEach(videoId => {
+        this.loadVideoById(videoId);
+      });
+
+      // Add click listeners to newly created items
+      this.attachVideoItemListeners();
+
+      // Log stats
+      const stats = this.gridEngine.getStats();
+      console.log(`WASM Render: ${stats.visibleVideos} visible, ${stats.loadedVideos} loaded, ${stats.inViewport} in viewport`);
+
+    } catch (error) {
+      console.error('Error in WASM rendering, falling back:', error);
+      this.useWasmEngine = false;
+      this.renderSmartGrid();
+    }
+  }
+
+  applyDomOperations(operations) {
+    const container = document.querySelector('.video-grid');
+    if (!container) return;
+
+    operations.forEach(op => {
+      switch (op.type) {
+        case 'Add': {
+          // Find the video data
+          const video = this.displayedVideos.find(v => v.id === op.video_id);
+          if (video) {
+            // Create element from HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = this.createVideoItemHTML(video, op.index || 0);
+            const element = tempDiv.firstElementChild;
+
+            // Insert at correct position
+            if (op.index !== undefined && op.index < container.children.length) {
+              container.insertBefore(element, container.children[op.index]);
+            } else {
+              container.appendChild(element);
+            }
+          }
+          break;
+        }
+
+        case 'Remove': {
+          const toRemove = container.querySelector(`[data-video-id="${op.video_id}"]`);
+          if (toRemove) {
+            // Clean up video element before removal
+            const videoEl = toRemove.querySelector('video');
+            if (videoEl) {
+              videoEl.pause();
+              videoEl.src = '';
+              if (videoEl._loopHandler) {
+                videoEl.removeEventListener('timeupdate', videoEl._loopHandler);
+              }
+            }
+            toRemove.remove();
+          }
+          break;
+        }
+
+        case 'Move': {
+          // Reorder existing element
+          const element = container.querySelector(`[data-video-id="${op.video_id}"]`);
+          if (element && op.to !== undefined) {
+            if (op.to < container.children.length) {
+              container.insertBefore(element, container.children[op.to]);
+            } else {
+              container.appendChild(element);
+            }
+          }
+          break;
+        }
+
+        case 'Update': {
+          // Update element attributes/data if needed
+          const element = container.querySelector(`[data-video-id="${op.video_id}"]`);
+          if (element && op.index !== undefined) {
+            element.dataset.index = op.index;
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  loadVideoById(videoId) {
+    const container = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (!container) return;
+
+    const videoElement = container.querySelector('video');
+    if (!videoElement) return;
+
+    const src = videoElement.dataset.src;
+    if (!src || videoElement.src) return; // Already loaded
+
+    this.loadVideo(videoElement, container);
+
+    // Mark as loaded in WASM state
+    if (this.gridEngine) {
+      this.gridEngine.markVideoLoaded(videoId);
+    }
+  }
+
+  unloadVideoById(videoId) {
+    const container = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (!container) return;
+
+    const videoElement = container.querySelector('video');
+    if (!videoElement) return;
+
+    // Only unload if actually loaded
+    if (videoElement.src) {
+      videoElement.pause();
+      videoElement.src = '';
+
+      // Remove loop handler if exists
+      if (videoElement._loopHandler) {
+        videoElement.removeEventListener('timeupdate', videoElement._loopHandler);
+        delete videoElement._loopHandler;
+      }
+
+      container.classList.remove('loading');
+      videoElement.classList.remove('loaded');
+    }
+  }
+
+  attachVideoItemListeners() {
+    // Add click listeners for video expansion to items without them
+    const items = document.querySelectorAll('.video-item');
+    items.forEach((item, index) => {
+      // Check if listener already attached
+      if (item.dataset.hasListener) return;
+
+      item.dataset.hasListener = 'true';
+      item.addEventListener('click', (e) => {
+        // Don't expand if clicking on favorite button
+        if (!e.target.closest('.video-favorite')) {
+          const videoIndex = parseInt(item.dataset.index, 10);
+          this.expandVideo(videoIndex);
+        }
+      });
+    });
   }
 
   renderVirtualizedGrid() {
@@ -880,11 +1201,15 @@ class VdoTapesApp {
     }
   }
 
-  async loadVideo(videoElement, container) {
+  async loadVideo(videoElement, container, retryCount = 0) {
     const src = videoElement.dataset.src;
     if (!src || videoElement.src) return;
 
+    // Get or initialize retry counter
+    const currentRetries = parseInt(container.dataset.retryCount || '0', 10);
+
     container.classList.add('loading');
+    container.classList.remove('error'); // Remove error state when retrying
 
     try {
       videoElement.src = src;
@@ -900,7 +1225,15 @@ class VdoTapesApp {
 
       const handleLoad = () => {
         container.classList.remove('loading');
+        container.classList.remove('error');
         videoElement.classList.add('loaded');
+
+        // Reset retry count on successful load
+        container.dataset.retryCount = '0';
+
+        // Remove retry button if it exists
+        const retryBtn = container.querySelector('.retry-button');
+        if (retryBtn) retryBtn.remove();
 
         // Set title after video loads to override any browser default
         const videoIndex = Array.from(container.parentElement.children).indexOf(container);
@@ -913,10 +1246,33 @@ class VdoTapesApp {
         this.startVideoPlayback(videoElement);
       };
 
-      const handleError = (event) => {
+      const handleError = async (event) => {
         container.classList.remove('loading');
-        container.classList.add('error');
-        console.warn('Video load error:', src, event);
+
+        const nextRetryCount = currentRetries + 1;
+        container.dataset.retryCount = String(nextRetryCount);
+
+        console.warn(`Video load error (attempt ${nextRetryCount}/${this.MAX_VIDEO_LOAD_RETRIES}):`, src, event);
+
+        // If we haven't exceeded max retries, schedule a retry with exponential backoff
+        if (nextRetryCount < this.MAX_VIDEO_LOAD_RETRIES) {
+          const delay = this.RETRY_BASE_DELAY * Math.pow(2, nextRetryCount - 1); // 1s, 2s, 4s
+          console.log(`Retrying video load in ${delay}ms...`);
+
+          // Clear the failed src before retrying
+          videoElement.src = '';
+
+          setTimeout(() => {
+            this.loadVideo(videoElement, container, nextRetryCount);
+          }, delay);
+        } else {
+          // Max retries exceeded - show permanent error state with retry button
+          container.classList.add('error');
+          console.error(`Failed to load video after ${this.MAX_VIDEO_LOAD_RETRIES} attempts:`, src);
+
+          // Add manual retry button
+          this.addRetryButton(container, videoElement);
+        }
       };
 
       videoElement.addEventListener('loadedmetadata', handleLoad, { once: true });
@@ -933,7 +1289,36 @@ class VdoTapesApp {
       container.classList.remove('loading');
       container.classList.add('error');
       console.error('Error setting video source:', error);
+
+      // Add manual retry button for exceptions too
+      this.addRetryButton(container, videoElement);
     }
+  }
+
+  addRetryButton(container, videoElement) {
+    // Check if retry button already exists
+    if (container.querySelector('.retry-button')) return;
+
+    const retryButton = document.createElement('button');
+    retryButton.className = 'retry-button';
+    retryButton.innerHTML = `
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+      </svg>
+      <span>Retry</span>
+    `;
+    retryButton.title = 'Click to retry loading this video';
+
+    // Reset retry count and attempt reload
+    retryButton.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent video expansion
+      container.dataset.retryCount = '0';
+      retryButton.remove();
+      videoElement.src = ''; // Clear failed src
+      this.loadVideo(videoElement, container, 0);
+    });
+
+    container.appendChild(retryButton);
   }
 
   startVideoPlayback(videoElement) {
@@ -1107,6 +1492,15 @@ class VdoTapesApp {
           this.favorites.add(videoId);
         } else {
           this.favorites.delete(videoId);
+        }
+
+        // Update WASM engine favorites
+        if (this.useWasmEngine && this.gridEngine) {
+          try {
+            this.gridEngine.updateFavorites(Array.from(this.favorites));
+          } catch (error) {
+            console.error('Error updating WASM favorites:', error);
+          }
         }
 
         this.updateFavoritesCount();
@@ -1730,6 +2124,15 @@ class VdoTapesApp {
           this.hiddenFiles.delete(videoId);
         } else {
           this.hiddenFiles.add(videoId);
+        }
+
+        // Update WASM engine hidden files
+        if (this.useWasmEngine && this.gridEngine) {
+          try {
+            this.gridEngine.updateHidden(Array.from(this.hiddenFiles));
+          } catch (error) {
+            console.error('Error updating WASM hidden files:', error);
+          }
         }
 
         this.updateHiddenCount();

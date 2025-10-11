@@ -609,6 +609,44 @@ body {
   font-size: 0.7rem;
 }
 
+/* Retry button for failed videos */
+.retry-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(102, 126, 234, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 20;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.retry-button:hover {
+  background: rgba(102, 126, 234, 1);
+  transform: translate(-50%, -50%) scale(1.05);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.retry-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.retry-button span {
+  font-size: 0.9rem;
+}
+
 .video-overlay {
   position: absolute;
   bottom: 0;

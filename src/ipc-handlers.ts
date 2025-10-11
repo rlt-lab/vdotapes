@@ -16,8 +16,7 @@ import { IPCError } from '../types/errors';
 
 import VideoDatabase from './database/VideoDatabase';
 import VideoScanner from './video-scanner';
-
-const ThumbnailGenerator = require('./thumbnail-gen');
+import ThumbnailGenerator from './thumbnail-gen';
 
 interface UserPreferences {
   readonly lastFolder?: string | null;

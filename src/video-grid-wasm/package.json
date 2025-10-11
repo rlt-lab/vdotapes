@@ -1,0 +1,24 @@
+{
+  "name": "video-grid-wasm",
+  "version": "0.1.0",
+  "description": "High-performance video grid engine compiled to WebAssembly",
+  "main": "pkg/video_grid_wasm.js",
+  "types": "pkg/video_grid_wasm.d.ts",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg --release",
+    "build:debug": "wasm-pack build --target web --out-dir pkg --dev",
+    "test": "wasm-pack test --headless --firefox",
+    "clean": "rm -rf pkg target"
+  },
+  "files": [
+    "pkg"
+  ],
+  "devDependencies": {
+    "wasm-pack": "^0.13.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "."
+  },
+  "license": "MIT"
+}

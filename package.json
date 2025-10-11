@@ -12,8 +12,14 @@
     "build:win": "npm run build:ts && electron-builder --win",
     "pack": "npm run build:ts && electron-builder --dir",
     "build:ts": "npm run build:main && npm run build:renderer",
-    "build:main": "tsc -p src/tsconfig.json",
+    "build:main": "tsc -p src/tsconfig.json && npm run copy:native",
     "build:renderer": "tsc -p app/tsconfig.json",
+    "copy:native": "mkdir -p dist/main/src/video-scanner-native dist/main/src/thumbnail-generator-native && cp src/video-scanner-native/*.node dist/main/src/video-scanner-native/ 2>/dev/null || true && cp src/thumbnail-generator-native/*.node dist/main/src/thumbnail-generator-native/ 2>/dev/null || true",
+    "build:native": "cd src/video-scanner-native && npm run build",
+    "build:native:debug": "cd src/video-scanner-native && npm run build:debug",
+    "build:thumbnails": "cd src/thumbnail-generator-native && npm run build",
+    "build:thumbnails:debug": "cd src/thumbnail-generator-native && npm run build:debug",
+    "build:all": "npm run build:native && npm run build:thumbnails && npm run build:ts",
     "type-check": "npm run build:ts --noEmit",
     "lint": "eslint \"{src,app,types}/**/*.{ts,js}\"",
     "lint:fix": "eslint \"{src,app,types}/**/*.{ts,js}\" --fix",
@@ -30,6 +36,8 @@
     "files": [
       "dist/main/**",
       "app/**/*.{js,html,css,png}",
+      "src/video-scanner-native/**/*.node",
+      "src/thumbnail-generator-native/**/*.node",
       "node_modules/**/*"
     ],
     "mac": {
@@ -57,16 +65,17 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
+    "@napi-rs/cli": "^3.3.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.3.0",
-    "eslint": "^8.57.0",
-    "@typescript-eslint/parser": "^7.18.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "eslint-plugin-import": "^2.29.1",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.3",
+    "@typescript-eslint/parser": "^7.18.0",
     "electron": "^37.2.1",
     "electron-builder": "^26.0.12",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.3.3",
     "typescript": "^5.9.2"
   },
   "dependencies": {
