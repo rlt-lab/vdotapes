@@ -58,37 +58,47 @@ class UIHelper {
   }
 
   showFilterControls() {
-    document.getElementById('filterControls').style.display = 'flex';
+    const filterControls = document.getElementById('filterControls');
+    if (filterControls) {
+      filterControls.style.display = 'flex';
+    }
   }
 
   showStatus(message) {
-    const statusBar = document.getElementById('statusBar');
-    statusBar.textContent = message;
+    const statusBar = document.getElementById('status');
+    if (statusBar) {
+      statusBar.textContent = message;
+    }
   }
 
   showProgress(percent, message = null) {
-    const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
+    const progressFill = document.getElementById('progressFill');
+    const statusBar = document.getElementById('status');
 
-    progressContainer.style.display = 'flex';
-    progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    if (progressBar) {
+      progressBar.style.display = 'block';
+    }
+    
+    if (progressFill) {
+      progressFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
 
-    if (message) {
-      progressText.textContent = message;
+    if (message && statusBar) {
+      statusBar.textContent = message;
     }
   }
 
   updateProgress(percent, message = null) {
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
+    const progressFill = document.getElementById('progressFill');
+    const statusBar = document.getElementById('status');
 
-    if (progressBar) {
-      progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    if (progressFill) {
+      progressFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
     }
 
-    if (message && progressText) {
-      progressText.textContent = message;
+    if (message && statusBar) {
+      statusBar.textContent = message;
     }
   }
 
@@ -129,8 +139,10 @@ class UIHelper {
   }
 
   hideProgress() {
-    const progressContainer = document.getElementById('progressContainer');
-    progressContainer.style.display = 'none';
+    const progressBar = document.getElementById('progressBar');
+    if (progressBar) {
+      progressBar.style.display = 'none';
+    }
   }
 
   updateStatusMessage() {
