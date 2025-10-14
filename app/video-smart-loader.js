@@ -41,8 +41,15 @@ class VideoSmartLoader {
           }
 
           if (entry.isIntersecting) {
-            // Load and play video
-            this.loadVideo(video, entry.target, videoId);
+            // Load and play video (with small delay to debounce rapid scrolling)
+            setTimeout(() => {
+              // Double-check it's still visible and not loaded
+              if (entry.target.getBoundingClientRect().bottom > 0 && 
+                  entry.target.getBoundingClientRect().top < window.innerHeight &&
+                  !this.loadedVideos.has(videoId)) {
+                this.loadVideo(video, entry.target, videoId);
+              }
+            }, 100);
           } else {
             // Just pause, don't unload immediately
             this.pauseVideo(video, videoId);
@@ -52,7 +59,7 @@ class VideoSmartLoader {
       {
         root: null,
         rootMargin: '500px', // Large margin for smooth loading
-        threshold: 0.1,
+        threshold: [0, 0.1, 0.5], // Multiple thresholds for better detection
       }
     );
   }
@@ -218,8 +225,30 @@ class VideoSmartLoader {
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
         this.performCleanup();
+        this.retryVisibleUnloadedVideos(); // Retry any visible videos that didn't load
       }, 500);
     }, { passive: true });
+  }
+
+  retryVisibleUnloadedVideos() {
+    const videoItems = document.querySelectorAll('.video-item');
+    const viewportHeight = window.innerHeight;
+    
+    videoItems.forEach((item) => {
+      const rect = item.getBoundingClientRect();
+      const isVisible = rect.top < viewportHeight && rect.bottom > 0;
+      
+      if (isVisible) {
+        const videoId = item.dataset.videoId;
+        const video = item.querySelector('video');
+        
+        // If video is visible but hasn't loaded (no src and not loading), retry
+        if (video && !video.src && videoId && !this.loadedVideos.has(videoId) && !item.classList.contains('loading')) {
+          console.log('[SmartLoader] Retrying visible unloaded video:', videoId);
+          this.loadVideo(video, item, videoId);
+        }
+      }
+    });
   }
 
   performCleanup() {
