@@ -29,6 +29,7 @@ class VdoTapesApp {
     // WASM Grid Engine (high-performance filtering/sorting only)
     this.gridEngine = null;
     this.useWasmEngine = false;
+    this.lastFilterState = null; // Track filter changes to prevent unnecessary re-renders
 
     // Smart loading for all collections (no heavy virtualization)
     this.smartLoader = null;
@@ -570,7 +571,7 @@ class VdoTapesApp {
 
   filterByFolder(folderName) {
     this.currentFolder = folderName;
-    this.applyFiltersInPlace();
+    this.applyCurrentFilters();
     this.updateStatusMessage();
     this.saveSettings();
   }
@@ -668,8 +669,7 @@ class VdoTapesApp {
     const btn = document.getElementById('favoritesBtn');
     btn.classList.toggle('active', this.showingFavoritesOnly);
 
-    this.applyFiltersInPlace();
-    this.refreshVisibleVideos();
+    this.applyCurrentFilters();
     this.updateStatusMessage();
     this.saveSettings();
   }
@@ -678,6 +678,17 @@ class VdoTapesApp {
     // Use WASM engine if available for high-performance filtering and sorting
     if (this.useWasmEngine && this.gridEngine) {
       try {
+        // Check if filters actually changed
+        const currentFilterState = JSON.stringify({
+          folder: this.currentFolder,
+          favoritesOnly: this.showingFavoritesOnly,
+          hiddenOnly: this.showingHiddenOnly,
+          sort: this.currentSort
+        });
+        
+        const filtersChanged = this.lastFilterState !== currentFilterState;
+        this.lastFilterState = currentFilterState;
+
         // Apply filters
         const filterCount = this.gridEngine.applyFilters({
           folder: this.currentFolder || null,
@@ -697,8 +708,13 @@ class VdoTapesApp {
 
         console.log(`WASM filtered to ${filterCount} videos`);
         
-        // Use incremental updates instead of full re-render
-        this.renderWasmGrid();
+        // Only re-render if filters actually changed
+        if (filtersChanged) {
+          console.log('[Filter] Filters changed, performing full re-render');
+          this.renderWasmGrid();
+        } else {
+          console.log('[Filter] No filter change, skipping re-render');
+        }
         return;
       } catch (error) {
         console.error('Error using WASM engine, falling back to JS:', error);
