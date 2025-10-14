@@ -171,6 +171,20 @@ class IPCHandlers {
         return { success: false, error: 'Invalid folder path', videos: [], folders: [] };
       }
 
+      // Check if we're scanning a different folder than before
+      const lastFolder = this.database.getLastFolder();
+      const isNewFolder = lastFolder !== folderPath;
+
+      if (isNewFolder && lastFolder) {
+        console.log(`[VideoScanner] Switching from ${lastFolder} to ${folderPath}, clearing old videos...`);
+        // Clear videos from the old folder before scanning the new one
+        this.clearVideosFromFolder(lastFolder);
+      } else if (!isNewFolder && lastFolder) {
+        // Same folder - clear existing videos to avoid duplicates
+        console.log(`[VideoScanner] Re-scanning ${folderPath}, clearing existing videos...`);
+        this.clearVideosFromFolder(lastFolder);
+      }
+
       const result = await this.videoScanner.scanVideos(folderPath);
 
       if (result.success && result.videos.length > 0) {
@@ -178,6 +192,9 @@ class IPCHandlers {
         if (!saved) {
           console.warn('Failed to save some videos to database');
         }
+
+        // Save the new folder as the last scanned folder
+        this.database.saveLastFolder(folderPath);
       }
 
       return result;
@@ -189,6 +206,40 @@ class IPCHandlers {
         videos: [],
         folders: [],
       };
+    }
+  }
+
+  /**
+   * Clear all videos from a specific folder path
+   */
+  private clearVideosFromFolder(folderPath: string): void {
+    try {
+      const db = this.database['core'].getConnection();
+
+      // Get all videos from the old folder
+      const videosToDelete = db.prepare(`
+        SELECT id FROM videos WHERE path LIKE ?
+      `).all(`${folderPath}%`) as Array<{ id: string }>;
+
+      if (videosToDelete.length === 0) {
+        console.log('[VideoScanner] No videos to clear from old folder');
+        return;
+      }
+
+      console.log(`[VideoScanner] Clearing ${videosToDelete.length} videos from old folder`);
+
+      // Delete each video (this will cascade to favorites, ratings, tags, etc.)
+      const deleteStmt = db.prepare('DELETE FROM videos WHERE id = ?');
+      const deleteTransaction = db.transaction((ids: string[]) => {
+        for (const id of ids) {
+          deleteStmt.run(id);
+        }
+      });
+
+      deleteTransaction(videosToDelete.map(v => v.id));
+      console.log('[VideoScanner] Successfully cleared old videos');
+    } catch (error) {
+      console.error('Error clearing videos from old folder:', error);
     }
   }
 
@@ -668,7 +719,22 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      return this.database.getLastFolder();
+      const lastFolder = this.database.getLastFolder();
+
+      // Validate that the last folder still exists
+      if (lastFolder) {
+        const folderExists = await this.isValidDirectory(lastFolder);
+        if (!folderExists) {
+          console.log(`[VideoScanner] Last folder ${lastFolder} no longer exists, clearing database...`);
+          // Clear videos from the non-existent folder
+          this.clearVideosFromFolder(lastFolder);
+          // Clear the last folder setting
+          this.database.saveLastFolder('');
+          return null;
+        }
+      }
+
+      return lastFolder;
     } catch (error) {
       console.error('Error getting last folder:', error);
       return null;

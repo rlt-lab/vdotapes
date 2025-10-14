@@ -121,3 +121,4 @@ Use the Playwright MCP server to capture current UI state before making changes:
 - Favorites and tagging interfaces
 
 Screenshots should be taken at different viewport sizes and with various video collections loaded to ensure consistent UI behavior across different usage scenarios.
+- use prompt-engineer subagent to adjust all prompts given before executing them.

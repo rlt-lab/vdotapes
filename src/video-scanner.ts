@@ -4,17 +4,11 @@
  * This module provides a seamless integration layer between the high-performance
  * Rust native video scanner and the TypeScript application. It handles:
  * - Type conversions between Rust and TypeScript branded types
- * - Graceful fallback to pure TypeScript implementation
  * - API compatibility with the existing codebase
- *
- * The wrapper automatically detects if the native module is available and falls
- * back to the TypeScript implementation if not (e.g., on unsupported platforms
- * or during development without native binaries).
  */
 
 import type {
   VideoId,
-  FilePath,
   Timestamp,
   VideoRecord,
   ScanResult as CoreScanResult,
@@ -106,68 +100,12 @@ interface NativeScannerConstructor {
 }
 
 /**
- * Fallback scanner interface (TypeScript implementation)
+ * Load native Rust module
  */
-interface FallbackScanner {
-  scanVideos(folderPath: string): Promise<CoreScanResult>;
-  getProgress(): ScanProgress;
-  getVideos(): readonly VideoRecord[];
-  reset(): void;
-  isValidVideoFile(filename: string): boolean;
-  getFileMetadata(filePath: string): Promise<FileMetadata | null>;
-  getVideoMetadata(filePath: string): Promise<VideoMetadata | null>;
-  generateVideoId(filePath: string, metadata: FileMetadata): VideoId;
-}
-
-/**
- * Fallback scanner constructor type
- */
-interface FallbackScannerConstructor {
-  new (): FallbackScanner;
-}
-
-/**
- * Scanner implementation type (either native or fallback)
- */
-type ScannerImpl = NativeScanner | FallbackScanner;
-
-/**
- * Determine which scanner implementation to use
- * Tries to load native Rust module first, falls back to TypeScript
- */
-let ScannerClass: NativeScannerConstructor | FallbackScannerConstructor;
-let isNativeScanner = false;
-
-try {
-  // Attempt to load the native Rust module
-  const nativeModule = require('./video-scanner-native');
-  ScannerClass = nativeModule.VideoScannerNative;
-  isNativeScanner = true;
-  console.log('[VideoScanner] Using native Rust implementation');
-} catch (error) {
-  // Fall back to TypeScript implementation
-  console.warn('[VideoScanner] Native module unavailable, using TypeScript fallback');
-  if (error instanceof Error) {
-    console.warn(`[VideoScanner] Reason: ${error.message}`);
-  }
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  ScannerClass = require('./video-scanner-fallback');
-  isNativeScanner = false;
-}
-
-/**
- * Type guard to check if scanner is native
- */
-function isNativeScannerInstance(scanner: ScannerImpl): scanner is NativeScanner {
-  return isNativeScanner;
-}
-
-/**
- * Type guard to check if scanner is fallback
- */
-function isFallbackScannerInstance(scanner: ScannerImpl): scanner is FallbackScanner {
-  return !isNativeScanner;
-}
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+const nativeModule = require('./video-scanner-native');
+const NativeScannerClass: NativeScannerConstructor = nativeModule.VideoScannerNative;
+console.log('[VideoScanner] Using native Rust implementation');
 
 /**
  * Convert native Rust VideoMetadata to TypeScript VideoRecord
@@ -203,10 +141,9 @@ function convertNativeScanResult(nativeResult: NativeScanResult): CoreScanResult
 }
 
 /**
- * VideoScanner - Unified API for video scanning
+ * VideoScanner - TypeScript wrapper for native Rust video scanner
  *
- * Provides a consistent interface regardless of whether the native Rust
- * implementation or TypeScript fallback is being used.
+ * Provides a consistent API for the Rust native scanner with TypeScript types.
  *
  * @example
  * ```typescript
@@ -216,10 +153,10 @@ function convertNativeScanResult(nativeResult: NativeScanResult): CoreScanResult
  * ```
  */
 class VideoScanner {
-  private readonly scanner: ScannerImpl;
+  private readonly scanner: NativeScanner;
 
   constructor() {
-    this.scanner = new ScannerClass();
+    this.scanner = new NativeScannerClass();
   }
 
   /**
@@ -232,14 +169,9 @@ class VideoScanner {
    * @throws {ScanError} If scanning fails
    */
   async scanVideos(folderPath: string): Promise<CoreScanResult> {
-    if (isNativeScannerInstance(this.scanner)) {
-      // Native scanner is synchronous, wrap in Promise for consistent API
-      const nativeResult = this.scanner.scanVideos(folderPath);
-      return convertNativeScanResult(nativeResult);
-    } else {
-      // Fallback scanner is already async
-      return this.scanner.scanVideos(folderPath);
-    }
+    // Native scanner is synchronous, wrap in Promise for consistent API
+    const nativeResult = this.scanner.scanVideos(folderPath);
+    return convertNativeScanResult(nativeResult);
   }
 
   /**
@@ -257,14 +189,8 @@ class VideoScanner {
    * @returns Readonly array of video records with branded types
    */
   getVideos(): readonly VideoRecord[] {
-    if (isNativeScannerInstance(this.scanner)) {
-      // Convert native videos to typed records
-      const nativeVideos = this.scanner.getVideos();
-      return nativeVideos.map(convertNativeVideoToRecord);
-    } else {
-      // Fallback already returns typed records
-      return this.scanner.getVideos();
-    }
+    const nativeVideos = this.scanner.getVideos();
+    return nativeVideos.map(convertNativeVideoToRecord);
   }
 
   /**
@@ -287,39 +213,30 @@ class VideoScanner {
   }
 
   /**
-   * Get file metadata (fallback only)
+   * Get file metadata
    *
-   * Note: This method is only available when using the TypeScript fallback.
-   * The native scanner does not expose this method separately as it's integrated
-   * into the main scanning process.
+   * Note: The native scanner integrates this into the main scanning process.
+   * This method is provided for API compatibility but returns null.
    *
-   * @param filePath - Absolute path to the file
-   * @returns File metadata or null if unavailable
+   * @param _filePath - Absolute path to the file
+   * @returns Always returns null (use scanVideos to get metadata)
    */
-  async getFileMetadata(filePath: string): Promise<FileMetadata | null> {
-    if (isFallbackScannerInstance(this.scanner)) {
-      return this.scanner.getFileMetadata(filePath);
-    }
-    // Native scanner doesn't expose this separately
-    console.warn('[VideoScanner] getFileMetadata not available in native implementation');
+  async getFileMetadata(_filePath: string): Promise<FileMetadata | null> {
+    console.warn('[VideoScanner] getFileMetadata not available - use scanVideos instead');
     return null;
   }
 
   /**
-   * Get video metadata (fallback only)
+   * Get video metadata
    *
-   * Note: This method is only available when using the TypeScript fallback.
-   * The native scanner integrates metadata extraction into the main scan.
+   * Note: The native scanner integrates this into the main scanning process.
+   * This method is provided for API compatibility but returns null.
    *
-   * @param filePath - Absolute path to the video file
-   * @returns Video metadata or null if unavailable
+   * @param _filePath - Absolute path to the video file
+   * @returns Always returns null (use scanVideos to get metadata)
    */
-  async getVideoMetadata(filePath: string): Promise<VideoMetadata | null> {
-    if (isFallbackScannerInstance(this.scanner)) {
-      return this.scanner.getVideoMetadata(filePath);
-    }
-    // Native scanner doesn't expose this separately
-    console.warn('[VideoScanner] getVideoMetadata not available in native implementation');
+  async getVideoMetadata(_filePath: string): Promise<VideoMetadata | null> {
+    console.warn('[VideoScanner] getVideoMetadata not available - use scanVideos instead');
     return null;
   }
 
@@ -329,19 +246,14 @@ class VideoScanner {
    * Creates a deterministic hash-based ID from filename, size, and modification time.
    * This ensures the same video file always gets the same ID.
    *
-   * Note: This method is only available when using the TypeScript fallback.
-   * The native scanner generates IDs internally during the scan.
+   * Note: The native scanner generates IDs internally. This method is provided
+   * for API compatibility.
    *
    * @param filePath - Absolute path to the video file
    * @param metadata - File metadata (size and timestamps)
    * @returns Branded VideoId type
    */
   generateVideoId(filePath: string, metadata: FileMetadata): VideoId {
-    if (isFallbackScannerInstance(this.scanner)) {
-      return this.scanner.generateVideoId(filePath, metadata);
-    }
-
-    // Native scanner doesn't expose this separately, implement it here
     const filename = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
     const str = `${filename}_${metadata.size}_${metadata.lastModified}`;
     let hash = 0;
@@ -356,10 +268,10 @@ class VideoScanner {
   /**
    * Check if the native scanner is being used
    *
-   * @returns true if using Rust native implementation
+   * @returns Always true (always using Rust native implementation)
    */
   isUsingNativeScanner(): boolean {
-    return isNativeScanner;
+    return true;
   }
 }
 

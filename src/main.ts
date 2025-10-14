@@ -1,6 +1,6 @@
 import * as path from 'path';
 
-import { app, BrowserWindow, ipcMain, dialog, Menu, IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, IpcMainInvokeEvent } from 'electron';
 
 import IPCHandlers = require('./ipc-handlers');
 
@@ -175,7 +175,7 @@ process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) =>
 });
 
 // Security: Disable eval and other dangerous features
-app.on('web-contents-created', (event, contents) => {
+app.on('web-contents-created', (_event, contents) => {
   // Prevent navigation to external URLs
   contents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl);

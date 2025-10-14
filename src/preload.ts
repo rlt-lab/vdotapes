@@ -1,15 +1,16 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-import type { ElectronAPI } from '../types/ipc';
+import type { ScanResult } from '../types/core';
+import type { ElectronAPI, ScanProgressData } from '../types/ipc';
 
 // Extend Window interface for Node.js globals cleanup
 declare global {
   interface Window {
-    require?: any;
-    exports?: any;
-    module?: any;
-    global?: any;
-    process?: any;
+    require?: unknown;
+    exports?: unknown;
+    module?: unknown;
+    global?: unknown;
+    process?: unknown;
   }
 }
 
@@ -75,13 +76,13 @@ const electronAPI: ElectronAPI = {
 
   // Progress and status
   onScanProgress: (callback) => {
-    ipcRenderer.on('scan-progress', (event: IpcRendererEvent, data: any) => callback(data));
+    ipcRenderer.on('scan-progress', (_event: IpcRendererEvent, data: ScanProgressData) => callback(data));
   },
   onScanComplete: (callback) => {
-    ipcRenderer.on('scan-complete', (event: IpcRendererEvent, data: any) => callback(data));
+    ipcRenderer.on('scan-complete', (_event: IpcRendererEvent, data: ScanResult) => callback(data));
   },
   onError: (callback) => {
-    ipcRenderer.on('error', (event: IpcRendererEvent, error: any) => callback(error));
+    ipcRenderer.on('error', (_event: IpcRendererEvent, error: { message: string; code?: string }) => callback(error));
   },
 
   // Remove listeners
@@ -95,24 +96,24 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 // Security: Prevent access to Node.js APIs
 window.addEventListener('DOMContentLoaded', () => {
   // Remove Node.js globals from window
-  delete (window as any).require;
-  delete (window as any).exports;
-  delete (window as any).module;
-  delete (window as any).global;
-  delete (window as any).process;
+  delete (window as unknown as Record<string, unknown>).require;
+  delete (window as unknown as Record<string, unknown>).exports;
+  delete (window as unknown as Record<string, unknown>).module;
+  delete (window as unknown as Record<string, unknown>).global;
+  delete (window as unknown as Record<string, unknown>).process;
 
   // Override console methods to prevent potential security issues
   const originalConsole = { ...console };
-  console.log = (...args: any[]) => {
+  console.log = (...args: unknown[]) => {
     // Only allow safe logging
     originalConsole.log('[Renderer]', ...args);
   };
 
-  console.warn = (...args: any[]) => {
+  console.warn = (...args: unknown[]) => {
     originalConsole.warn('[Renderer]', ...args);
   };
 
-  console.error = (...args: any[]) => {
+  console.error = (...args: unknown[]) => {
     originalConsole.error('[Renderer]', ...args);
   };
 });

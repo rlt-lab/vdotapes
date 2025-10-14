@@ -490,16 +490,24 @@ class VdoTapesApp {
       const result = await window.electronAPI.scanVideos(folderPath);
 
       if (result.success) {
-        this.allVideos = result.videos;
-        this.folders = result.folders;
-        this.populateFolderDropdown();
-
-        // Load videos from database with favorite status
+        // Load videos from database with favorite status (database is already populated by scanner)
         try {
           const dbVideos = await window.electronAPI.getVideos({ sortBy: 'none' });
           if (dbVideos && dbVideos.length > 0) {
             this.allVideos = dbVideos;
+            // Extract folders from the loaded videos
+            const folderSet = new Set();
+            dbVideos.forEach(video => {
+              if (video.folder) folderSet.add(video.folder);
+            });
+            this.folders = Array.from(folderSet).sort();
+          } else {
+            // Fallback to scan result if database is empty
+            this.allVideos = result.videos;
+            this.folders = result.folders;
           }
+
+          this.populateFolderDropdown();
 
           // Sync local favorites with database
           const favorites = await window.electronAPI.getFavorites();
@@ -510,6 +518,9 @@ class VdoTapesApp {
         } catch (error) {
           console.error('Error loading videos from database:', error);
           // Continue with scanned videos if database loading fails
+          this.allVideos = result.videos;
+          this.folders = result.folders;
+          this.populateFolderDropdown();
         }
 
         // Load videos into WASM engine if available
