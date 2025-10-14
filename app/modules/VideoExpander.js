@@ -45,64 +45,68 @@ class VideoExpander {
   }
 
   async refreshExpandedSidebar(video) {
-    const fileName = document.getElementById('expandedFileName');
-    const fileSize = document.getElementById('expandedFileSize');
-    const filePath = document.getElementById('expandedFilePath');
-    const resolution = document.getElementById('expandedResolution');
-    const duration = document.getElementById('expandedDuration');
-    const bitrate = document.getElementById('expandedBitrate');
-    const codec = document.getElementById('expandedCodec');
-    const favoriteBtn = document.getElementById('expandedFavoriteBtn');
-    const hiddenBtn = document.getElementById('expandedHiddenBtn');
+    // Map to actual HTML element IDs
+    const metaFolder = document.getElementById('metaFolder');
+    const metaLength = document.getElementById('metaLength');
+    const metaFilename = document.getElementById('metaFilename');
+    const favoriteBtn = document.getElementById('sidebarFavoriteBtn');
+    const hiddenBtn = document.getElementById('sidebarHiddenBtn');
 
-    fileName.textContent = video.name || 'Unknown';
-    fileSize.textContent = this.app.formatFileSize(video.size || 0);
-    filePath.textContent = video.path || '';
+    // Update metadata fields
+    if (metaFolder) metaFolder.textContent = video.folder || '(Root)';
+    if (metaLength) metaLength.textContent = video.duration ? this.app.formatDuration(video.duration) : 'Unknown';
+    if (metaFilename) metaFilename.textContent = video.name || 'Unknown';
 
-    resolution.textContent = video.resolution || 'Unknown';
-    duration.textContent = video.duration ? this.app.formatDuration(video.duration) : 'Unknown';
-
-    if (video.bitrate) {
-      const bitrateKbps = Math.round(video.bitrate / 1000);
-      bitrate.textContent = `${bitrateKbps} kb/s`;
-    } else {
-      bitrate.textContent = 'Unknown';
-    }
-    codec.textContent = video.codec || 'Unknown';
-
-    const isFavorited = this.app.favorites.has(video.id);
-    if (isFavorited) {
-      favoriteBtn.classList.add('favorited');
-      favoriteBtn.querySelector('.heart-icon').innerHTML = `
-        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-      `;
-    } else {
-      favoriteBtn.classList.remove('favorited');
-      favoriteBtn.querySelector('.heart-icon').innerHTML = `
-        <path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/>
-      `;
+    // Update favorite button
+    if (favoriteBtn) {
+      const isFavorited = this.app.favorites.has(video.id);
+      favoriteBtn.classList.toggle('active', isFavorited);
+      favoriteBtn.onclick = (e) => this.app.userDataManager.toggleFavorite(video.id, e);
     }
 
-    const isHidden = this.app.hiddenFiles.has(video.id);
-    if (isHidden) {
-      hiddenBtn.classList.add('hidden-active');
-      hiddenBtn.textContent = 'Show';
-    } else {
-      hiddenBtn.classList.remove('hidden-active');
-      hiddenBtn.textContent = 'Hide';
+    // Update hidden button
+    if (hiddenBtn) {
+      const isHidden = this.app.hiddenFiles.has(video.id);
+      hiddenBtn.classList.toggle('active', isHidden);
+      hiddenBtn.onclick = (e) => this.app.userDataManager.toggleHiddenFile(video.id, e);
     }
 
+    // Update go to file button
+    const goToBtn = document.getElementById('goToFileBtn');
+    if (goToBtn) {
+      goToBtn.onclick = () => this.app.eventController.openFileLocation(video.path);
+    }
+
+    // Load tags
     try {
-      const tags = await window.electronAPI.getVideoTags(video.id);
-      this.renderTagList(tags || []);
+      const tags = await window.electronAPI.listTags(video.id);
+      this.renderTagList(tags || [], video.id);
     } catch (error) {
       console.error('Error loading tags:', error);
-      this.renderTagList([]);
+      this.renderTagList([], video.id);
+    }
+
+    // Setup tag input
+    const tagInput = document.getElementById('tagInput');
+    if (tagInput) {
+      tagInput.onkeydown = async (ev) => {
+        if (ev.key === 'Enter') {
+          const t = tagInput.value.trim();
+          if (t) {
+            await window.electronAPI.addTag(video.id, t);
+            tagInput.value = '';
+            const tags = await window.electronAPI.listTags(video.id);
+            this.renderTagList(tags || [], video.id);
+          }
+        }
+      };
     }
   }
 
-  renderTagList(tags) {
-    const tagList = document.getElementById('expandedTagList');
+  renderTagList(tags, videoId) {
+    const tagList = document.getElementById('tagList');
+    if (!tagList) return;
+
     if (!tags || tags.length === 0) {
       tagList.innerHTML = '<span class="no-tags">No tags</span>';
       return;
@@ -111,13 +115,23 @@ class VideoExpander {
     tagList.innerHTML = tags
       .map(
         (tag) => `
-        <span class="tag-item" data-tag-id="${tag.id}">
-          ${tag.name}
-          <button class="tag-remove" data-tag-id="${tag.id}">×</button>
+        <span class="tag-item" data-tag="${tag}">
+          ${tag}
+          <button class="tag-remove" onclick="window.app.videoExpander.removeTag('${videoId}', '${tag}')">×</button>
         </span>
       `
       )
       .join('');
+  }
+
+  async removeTag(videoId, tagName) {
+    try {
+      await window.electronAPI.removeTag(videoId, tagName);
+      const tags = await window.electronAPI.listTags(videoId);
+      this.renderTagList(tags || [], videoId);
+    } catch (error) {
+      console.error('Error removing tag:', error);
+    }
   }
 }
 

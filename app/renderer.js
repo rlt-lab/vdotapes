@@ -82,7 +82,7 @@ class VdoTapesApp {
     window.addEventListener('wasm-ready', () => {
       try {
         if (window.VideoGridEngine) {
-          this.gridEngine = new window.VideoGridEngine(6);
+          this.gridEngine = new window.VideoGridEngine(30);
           this.useWasmEngine = true;
           console.log('✅ WASM Grid Engine initialized successfully!');
 
@@ -112,7 +112,7 @@ class VdoTapesApp {
       this.virtualGrid = new window.VirtualVideoGrid({
         renderer: this,
         wasmEngine: this.gridEngine,
-        maxActiveVideos: 6,
+        maxActiveVideos: 30,
         itemHeight: 400,
         itemsPerRow: this.gridCols,
         bufferRows: 1,
@@ -130,7 +130,7 @@ class VdoTapesApp {
       this.wasmLoader = new window.VideoWasmLoader({
         renderer: this,
         wasmEngine: this.gridEngine,
-        maxActiveVideos: 6,
+        maxActiveVideos: 30,
         itemHeight: 400,
         itemsPerRow: this.gridCols,
         bufferRows: 1
@@ -146,7 +146,7 @@ class VdoTapesApp {
   setupSmartLoader() {
     try {
       this.smartLoader = new VideoSmartLoader({
-        maxActiveVideos: 6,
+        maxActiveVideos: 30,
         loadBuffer: 3,
       });
       console.log('Smart video loader initialized (max: 6 videos)');
