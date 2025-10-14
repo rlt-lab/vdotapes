@@ -75,7 +75,7 @@ class VdoTapesApp {
     window.addEventListener('wasm-ready', () => {
       try {
         if (window.VideoGridEngine) {
-          this.gridEngine = new window.VideoGridEngine(30); // max 30 active videos
+          this.gridEngine = new window.VideoGridEngine(20); // max 20 active videos (conservative)
           this.useWasmEngine = true;
           console.log('✅ WASM Grid Engine initialized successfully!');
         }
@@ -385,8 +385,8 @@ class VdoTapesApp {
   setupSmartLoader() {
     try {
       this.smartLoader = new VideoSmartLoader({
-        maxActiveVideos: 30,
-        loadBuffer: 20,
+        maxActiveVideos: 20, // Conservative limit to avoid WebMediaPlayer errors
+        loadBuffer: 10,      // Smaller buffer for more aggressive unloading
       });
       console.log('Smart video loader initialized');
     } catch (error) {
@@ -428,7 +428,7 @@ class VdoTapesApp {
 
       // Update video loading
       const toLoad = this.gridEngine.getVideosToLoad();
-      const toUnload = this.gridEngine.getVideosToUnload(30);
+      const toUnload = this.gridEngine.getVideosToUnload(20); // Conservative limit
 
       toUnload.forEach(videoId => this.unloadVideoById(videoId));
       toLoad.forEach(videoId => this.loadVideoById(videoId));
@@ -867,7 +867,7 @@ class VdoTapesApp {
 
       // Get videos to load/unload based on viewport
       const toLoad = this.gridEngine.getVideosToLoad();
-      const toUnload = this.gridEngine.getVideosToUnload(30);
+      const toUnload = this.gridEngine.getVideosToUnload(20); // Conservative limit
 
       // Unload videos first to free memory
       toUnload.forEach(videoId => {
@@ -989,6 +989,9 @@ class VdoTapesApp {
     if (videoElement.src) {
       videoElement.pause();
       videoElement.src = '';
+      
+      // CRITICAL: Call load() to properly release WebMediaPlayer
+      videoElement.load();
 
       // Remove loop handler if exists
       if (videoElement._loopHandler) {
@@ -998,6 +1001,12 @@ class VdoTapesApp {
 
       container.classList.remove('loading');
       videoElement.classList.remove('loaded');
+      
+      // Also remove from smart loader's tracking
+      if (this.smartLoader) {
+        this.smartLoader.loadedVideos.delete(videoId);
+        this.smartLoader.activeVideos.delete(videoId);
+      }
     }
   }
 
@@ -1247,6 +1256,15 @@ class VdoTapesApp {
   async loadVideo(videoElement, container, retryCount = 0) {
     const src = videoElement.dataset.src;
     if (!src || videoElement.src) return;
+
+    // Check if we're approaching the WebMediaPlayer limit
+    if (this.smartLoader) {
+      const stats = this.smartLoader.getStats();
+      if (stats.loadedVideos >= 18) { // Close to limit of 20
+        console.warn('[LoadVideo] Approaching WebMediaPlayer limit, forcing cleanup');
+        this.smartLoader.forceCleanup();
+      }
+    }
 
     // Get or initialize retry counter
     const currentRetries = parseInt(container.dataset.retryCount || '0', 10);

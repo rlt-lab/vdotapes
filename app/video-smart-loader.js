@@ -13,7 +13,7 @@ class VideoSmartLoader {
 
     // Performance tracking
     this.lastCleanup = Date.now();
-    this.cleanupInterval = 10000; // 10 seconds
+    this.cleanupInterval = 3000; // 3 seconds - aggressive cleanup
 
     this.init();
   }
@@ -162,15 +162,15 @@ class VideoSmartLoader {
   }
 
   performCleanup() {
-    // If we have too many active videos, clean up the oldest ones
-    if (this.activeVideos.size > this.maxActiveVideos) {
+    // If we have too many loaded videos, clean up aggressively
+    if (this.loadedVideos.size > this.maxActiveVideos) {
       const videoItems = document.querySelectorAll('.video-item');
       const visibleVideos = new Set();
 
-      // Find currently visible videos
+      // Find currently visible videos (strict viewport only)
       videoItems.forEach((item) => {
         const rect = item.getBoundingClientRect();
-        const isVisible = rect.top < window.innerHeight + 200 && rect.bottom > -200;
+        const isVisible = rect.top < window.innerHeight + 100 && rect.bottom > -100;
 
         if (isVisible) {
           visibleVideos.add(item.dataset.videoId);
@@ -203,7 +203,7 @@ class VideoSmartLoader {
       });
 
       console.log(
-        `Cleanup: ${this.loadedVideos.size} videos loaded, ${this.activeVideos.size} active`
+        `[SmartLoader] Cleanup: ${this.loadedVideos.size} videos loaded, ${this.activeVideos.size} active (max: ${this.maxActiveVideos})`
       );
     }
   }
@@ -215,6 +215,12 @@ class VideoSmartLoader {
       activeVideos: this.activeVideos.size,
       maxActiveVideos: this.maxActiveVideos,
     };
+  }
+
+  // Force cleanup (can be called manually when approaching WebMediaPlayer limit)
+  forceCleanup() {
+    console.log('[SmartLoader] Force cleanup triggered');
+    this.performCleanup();
   }
 
   destroy() {
