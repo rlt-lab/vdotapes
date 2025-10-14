@@ -149,7 +149,7 @@ class VdoTapesApp {
         maxActiveVideos: 30,
         loadBuffer: 3,
       });
-      console.log('Smart video loader initialized (max: 6 videos)');
+      console.log('Smart video loader initialized (max: 30 videos)');
     } catch (error) {
       console.error('Error setting up smart loader:', error);
       this.smartLoader = null;
