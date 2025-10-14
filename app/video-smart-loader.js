@@ -29,9 +29,16 @@ class VideoSmartLoader {
       (entries) => {
         entries.forEach((entry) => {
           const video = entry.target.querySelector('video');
-          if (!video) return;
+          if (!video) {
+            console.warn('[SmartLoader] Video element not found in item:', entry.target);
+            return;
+          }
 
           const videoId = entry.target.dataset.videoId;
+          if (!videoId) {
+            console.warn('[SmartLoader] Video ID not found on item');
+            return;
+          }
 
           if (entry.isIntersecting) {
             // Load and play video
@@ -51,28 +58,73 @@ class VideoSmartLoader {
   }
 
   observeVideoItems(container) {
+    // Disconnect old observations to prevent memory leaks and ensure clean state
+    if (this.observer) {
+      this.observer.disconnect();
+      
+      // CRITICAL: Actually unload all videos before clearing tracking
+      // This prevents WebMediaPlayer limit from being exceeded
+      console.log(`[SmartLoader] Unloading ${this.loadedVideos.size} videos before re-render`);
+      
+      const oldVideoItems = document.querySelectorAll('.video-item');
+      oldVideoItems.forEach((item) => {
+        const videoId = item.dataset.videoId;
+        const video = item.querySelector('video');
+        
+        if (video && video.src && videoId && this.loadedVideos.has(videoId)) {
+          // Unload the video to free WebMediaPlayer
+          video.pause();
+          video.src = '';
+          video.load(); // Critical: releases WebMediaPlayer
+          
+          if (video._loopHandler) {
+            video.removeEventListener('timeupdate', video._loopHandler);
+            video._loopHandler = null;
+          }
+          
+          item.classList.remove('loading');
+          video.classList.remove('loaded');
+        }
+      });
+      
+      // Now clear the tracking Sets
+      this.loadedVideos.clear();
+      this.activeVideos.clear();
+    }
+    
     const videoItems = container.querySelectorAll('.video-item');
     videoItems.forEach((item) => {
       this.observer.observe(item);
     });
+    
+    console.log(`[SmartLoader] Observing ${videoItems.length} video items (state cleared, videos unloaded)`);
   }
 
   loadVideo(videoElement, container, videoId) {
     const src = videoElement.dataset.src;
     if (!src) return;
 
-    // If video is already loaded, just resume
-    if (this.loadedVideos.has(videoId)) {
+    // Check if video is loaded and has the correct source
+    const currentSrc = videoElement.src || '';
+    const hasCorrectSrc = currentSrc && currentSrc.includes(src);
+    
+    // If video is already loaded with correct src, just resume
+    if (this.loadedVideos.has(videoId) && hasCorrectSrc) {
       this.resumeVideo(videoElement, videoId);
       return;
     }
 
-    // Load video for the first time
-    if (!videoElement.src) {
+    // Load or reload video (handles both first load and re-load after cleanup)
+    if (!hasCorrectSrc) {
       container.classList.add('loading');
+      container.classList.remove('error');
 
-      videoElement.src = src;
+      // Ensure video attributes are set correctly for reload
+      videoElement.muted = true;
+      videoElement.loop = true;
       videoElement.preload = 'metadata';
+      videoElement.src = src;
+      videoElement.load(); // Explicitly trigger load
 
       const handleLoad = () => {
         container.classList.remove('loading');
@@ -159,27 +211,46 @@ class VideoSmartLoader {
     setInterval(() => {
       this.performCleanup();
     }, this.cleanupInterval);
+    
+    // Also cleanup on every scroll (throttled)
+    let scrollTimeout;
+    window.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        this.performCleanup();
+      }, 500);
+    }, { passive: true });
   }
 
   performCleanup() {
-    // If we have too many loaded videos, clean up aggressively
-    if (this.loadedVideos.size > this.maxActiveVideos) {
+    // More aggressive cleanup - start cleaning when we're close to the limit
+    const threshold = Math.floor(this.maxActiveVideos * 0.8); // 80% of max
+    
+    if (this.loadedVideos.size >= threshold) {
       const videoItems = document.querySelectorAll('.video-item');
       const visibleVideos = new Set();
 
-      // Find currently visible videos (strict viewport only)
+      // Find currently visible videos (tighter buffer zone)
       videoItems.forEach((item) => {
         const rect = item.getBoundingClientRect();
-        const isVisible = rect.top < window.innerHeight + 100 && rect.bottom > -100;
+        const bufferZone = 100; // Tighter - only 100px buffer
+        const isVisible = rect.top < window.innerHeight + bufferZone && rect.bottom > -bufferZone;
 
         if (isVisible) {
-          visibleVideos.add(item.dataset.videoId);
+          const videoId = item.dataset.videoId;
+          if (videoId) {
+            visibleVideos.add(videoId);
+          }
         }
       });
 
+      let unloadedCount = 0;
+      
       // Clean up non-visible videos
       videoItems.forEach((item) => {
         const videoId = item.dataset.videoId;
+        if (!videoId) return;
+        
         const video = item.querySelector('video');
 
         if (!visibleVideos.has(videoId) && this.loadedVideos.has(videoId)) {
@@ -187,24 +258,29 @@ class VideoSmartLoader {
           if (video && video.src) {
             video.pause();
             video.src = '';
-            video.load(); // Reset video element
+            video.load(); // Reset video element - releases WebMediaPlayer
 
             if (video._loopHandler) {
               video.removeEventListener('timeupdate', video._loopHandler);
               video._loopHandler = null;
             }
+            
+            unloadedCount++;
           }
 
           this.loadedVideos.delete(videoId);
           this.activeVideos.delete(videoId);
           item.classList.remove('loading');
-          item.querySelector('video')?.classList.remove('loaded');
+          video?.classList.remove('loaded');
         }
       });
 
-      console.log(
-        `[SmartLoader] Cleanup: ${this.loadedVideos.size} videos loaded, ${this.activeVideos.size} active (max: ${this.maxActiveVideos})`
-      );
+      if (unloadedCount > 0) {
+        console.log(
+          `[SmartLoader] Cleanup: Unloaded ${unloadedCount} videos. ` +
+          `Now: ${this.loadedVideos.size} loaded, ${this.activeVideos.size} active (max: ${this.maxActiveVideos})`
+        );
+      }
     }
   }
 
