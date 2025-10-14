@@ -26,10 +26,9 @@ class VdoTapesApp {
     this.previousViewState = { folder: '', sort: 'folder' };
     this.currentExpandedIndex = -1; // Track which video is currently expanded
 
-    // WASM Grid Engine (high-performance filtering/sorting/viewport)
+    // WASM Grid Engine (high-performance filtering/sorting only)
     this.gridEngine = null;
     this.useWasmEngine = false;
-    this.lastDisplayedCount = 0; // Track when filter changes require full re-render
 
     // Smart loading for all collections (no heavy virtualization)
     this.smartLoader = null;
@@ -396,49 +395,15 @@ class VdoTapesApp {
   }
 
   setupScrollHandler() {
-    let scrollTimeout;
-    const handleScroll = () => {
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        // Only update viewport if using WASM engine
-        if (this.useWasmEngine && this.gridEngine && this.displayedVideos.length > 0) {
-          this.updateViewport();
-        }
-      }, 16); // ~60fps
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    // Scroll handler disabled - smart loader uses IntersectionObserver instead
+    // This prevents conflicts between WASM viewport calculations and smart loader
+    // IntersectionObserver is more efficient and handles viewport detection automatically
+    console.log('[ScrollHandler] Using IntersectionObserver instead of manual scroll handling');
   }
 
   updateViewport() {
-    if (!this.useWasmEngine || !this.gridEngine) return;
-
-    try {
-      // Calculate new viewport
-      const reconciliation = this.gridEngine.calculateViewport(
-        window.pageYOffset,
-        window.innerHeight,
-        300, // item height
-        this.gridCols,
-        2    // buffer rows
-      );
-
-      // Apply any DOM changes needed
-      this.applyDomOperations(reconciliation.operations);
-
-      // Update video loading
-      const toLoad = this.gridEngine.getVideosToLoad();
-      const toUnload = this.gridEngine.getVideosToUnload(20); // Conservative limit
-
-      toUnload.forEach(videoId => this.unloadVideoById(videoId));
-      toLoad.forEach(videoId => this.loadVideoById(videoId));
-
-      // Attach listeners to any new items
-      this.attachVideoItemListeners();
-
-    } catch (error) {
-      console.error('Error updating viewport:', error);
-    }
+    // Disabled - smart loader handles viewport via IntersectionObserver
+    // This prevents DOM element conflicts when scrolling
   }
 
   setupVideoLifecycleManager() {
@@ -813,84 +778,23 @@ class VdoTapesApp {
   }
 
   renderWasmGrid() {
-    // Ensure container exists
-    let container = document.querySelector('.video-grid');
-    const isInitialRender = !container;
+    // WASM is used ONLY for filtering/sorting, NOT viewport management
+    // Always do full render and let smart loader handle video loading via IntersectionObserver
+    // This prevents DOM element conflicts and ensures videos always load correctly
     
-    // Check if we need a full re-render (filter/sort changed)
-    const needsFullRender = isInitialRender || this.lastDisplayedCount !== this.displayedVideos.length;
-    this.lastDisplayedCount = this.displayedVideos.length;
-
-    if (needsFullRender) {
-      // Full render when filter/sort changes
-      const gridHTML = this.displayedVideos
-        .map((video, index) => this.createVideoItemHTML(video, index))
-        .join('');
-      
-      document.getElementById('content').innerHTML = `<div class="video-grid">${gridHTML}</div>`;
-      container = document.querySelector('.video-grid');
-      this.updateGridLayout();
-      
-      // Reset reconciler state after full re-render
-      if (this.gridEngine) {
-        this.gridEngine.reset();
-        // Re-apply filters and sort after reset
-        this.gridEngine.applyFilters({
-          folder: this.currentFolder || null,
-          favorites_only: this.showingFavoritesOnly,
-          hidden_only: this.showingHiddenOnly,
-          show_hidden: false
-        });
-        this.gridEngine.setSortMode(this.currentSort);
-      }
-      
-      // Attach listeners and set up smart loading
-      this.attachVideoItemListeners();
-      this.observeVideoItemsWithSmartLoader();
-      
-      console.log(`WASM Full render: ${this.displayedVideos.length} videos`);
-      return;
-    }
-
-    try {
-      // Calculate viewport using WASM for incremental updates
-      const reconciliation = this.gridEngine.calculateViewport(
-        window.pageYOffset,
-        window.innerHeight,
-        300, // item height (estimated)
-        this.gridCols,
-        2    // buffer rows above and below viewport
-      );
-
-      // Apply minimal DOM operations (incremental updates)
-      this.applyDomOperations(reconciliation.operations);
-
-      // Get videos to load/unload based on viewport
-      const toLoad = this.gridEngine.getVideosToLoad();
-      const toUnload = this.gridEngine.getVideosToUnload(20); // Conservative limit
-
-      // Unload videos first to free memory
-      toUnload.forEach(videoId => {
-        this.unloadVideoById(videoId);
-      });
-
-      // Load visible videos
-      toLoad.forEach(videoId => {
-        this.loadVideoById(videoId);
-      });
-
-      // Add click listeners to newly created items
-      this.attachVideoItemListeners();
-
-      // Log stats
-      const stats = this.gridEngine.getStats();
-      console.log(`WASM Incremental: ${stats.visibleVideos} visible, ${stats.loadedVideos} loaded, ${stats.inViewport} in viewport`);
-
-    } catch (error) {
-      console.error('Error in WASM rendering, falling back:', error);
-      this.useWasmEngine = false;
-      this.renderSmartGrid();
-    }
+    const gridHTML = this.displayedVideos
+      .map((video, index) => this.createVideoItemHTML(video, index))
+      .join('');
+    
+    document.getElementById('content').innerHTML = `<div class="video-grid">${gridHTML}</div>`;
+    const container = document.querySelector('.video-grid');
+    this.updateGridLayout();
+    
+    // Attach listeners and set up smart loading
+    this.attachVideoItemListeners();
+    this.observeVideoItemsWithSmartLoader();
+    
+    console.log(`WASM render: ${this.displayedVideos.length} videos (smart loader active)`);
   }
 
   applyDomOperations(operations) {
