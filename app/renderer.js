@@ -350,6 +350,10 @@ class VdoTapesApp {
   updateHiddenCount() {
     this.userDataManager.updateHiddenCount();
   }
+
+  saveSettings() {
+    return this.userDataManager.saveSettings();
+  }
 }
 
 // Initialize app when DOM is ready
