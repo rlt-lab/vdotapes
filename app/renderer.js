@@ -34,6 +34,14 @@ class VdoTapesApp {
     // Smart loading for all collections (no heavy virtualization)
     this.smartLoader = null;
     this.useSmartLoading = true;
+    
+    // WASM-powered video loader (more reliable than IntersectionObserver)
+    this.wasmLoader = null;
+    this.useWasmLoader = false;
+    
+    // Virtual grid that actually uses WASM reconciliation
+    this.virtualGrid = null;
+    this.useVirtualGrid = false;
 
     // Video lifecycle management - disabled for now
     this.videoLifecycleManager = null;
@@ -59,6 +67,7 @@ class VdoTapesApp {
     this.setupIntersectionObserver();
     this.setupSmartLoader();
     this.setupWasmEngine();
+    this.setupWasmLoader();
     this.updateGridSize();
     this.updateFavoritesCount();
 
@@ -75,9 +84,19 @@ class VdoTapesApp {
     window.addEventListener('wasm-ready', () => {
       try {
         if (window.VideoGridEngine) {
-          this.gridEngine = new window.VideoGridEngine(20); // max 20 active videos (conservative)
+          this.gridEngine = new window.VideoGridEngine(6); // max 6 active videos (very conservative)
           this.useWasmEngine = true;
           console.log('✅ WASM Grid Engine initialized successfully!');
+          
+          // Initialize virtual grid that uses WASM reconciliation
+          if (window.VirtualVideoGrid && !this.virtualGrid) {
+            this.initializeVirtualGrid();
+          }
+          
+          // Initialize WASM loader as fallback
+          if (window.VideoWasmLoader && !this.wasmLoader) {
+            this.initializeWasmLoader();
+          }
         }
       } catch (error) {
         console.error('Failed to initialize WASM engine:', error);
@@ -89,7 +108,50 @@ class VdoTapesApp {
     window.addEventListener('wasm-failed', () => {
       console.warn('WASM module failed to load, using JavaScript fallback');
       this.useWasmEngine = false;
+      this.useWasmLoader = false;
     });
+  }
+  
+  setupWasmLoader() {
+    // WASM loader will be initialized after WASM engine is ready
+    // This is handled in setupWasmEngine's wasm-ready event
+    console.log('[Init] WASM loader will initialize when engine is ready');
+  }
+  
+  initializeVirtualGrid() {
+    try {
+      this.virtualGrid = new window.VirtualVideoGrid({
+        renderer: this,
+        wasmEngine: this.gridEngine,
+        maxActiveVideos: 6,
+        itemHeight: 400, // Approximate based on aspect-ratio
+        itemsPerRow: this.gridCols,
+        bufferRows: 1, // Only 1 row above/below
+      });
+      this.useVirtualGrid = true;
+      console.log('✅ Virtual grid initialized successfully (uses WASM reconciliation, max: 6 videos)!');
+    } catch (error) {
+      console.error('Failed to initialize virtual grid:', error);
+      this.useVirtualGrid = false;
+    }
+  }
+  
+  initializeWasmLoader() {
+    try {
+      this.wasmLoader = new window.VideoWasmLoader({
+        renderer: this,
+        wasmEngine: this.gridEngine,
+        maxActiveVideos: 6, // Match virtual grid limit
+        itemHeight: 400,
+        itemsPerRow: this.gridCols,
+        bufferRows: 1
+      });
+      this.useWasmLoader = true;
+      console.log('✅ WASM video loader initialized successfully (max: 6 videos)!');
+    } catch (error) {
+      console.error('Failed to initialize WASM loader:', error);
+      this.useWasmLoader = false;
+    }
   }
 
   get currentExpandedVideo() {
@@ -385,10 +447,10 @@ class VdoTapesApp {
   setupSmartLoader() {
     try {
       this.smartLoader = new VideoSmartLoader({
-        maxActiveVideos: 20, // Conservative limit to avoid WebMediaPlayer errors
-        loadBuffer: 10,      // Smaller buffer for more aggressive unloading
+        maxActiveVideos: 6, // VERY conservative - Chrome limit with scroll churn
+        loadBuffer: 3,      // Minimal buffer
       });
-      console.log('Smart video loader initialized');
+      console.log('Smart video loader initialized (max: 6 videos)');
     } catch (error) {
       console.error('Error setting up smart loader:', error);
       this.smartLoader = null;
@@ -784,13 +846,42 @@ class VdoTapesApp {
       return;
     }
 
-    // Use WASM-powered rendering if available (Phase 2)
-    if (this.useWasmEngine && this.gridEngine) {
+    // Priority 1: Use virtual grid with WASM reconciliation
+    if (this.useVirtualGrid && this.virtualGrid && this.useWasmEngine && this.gridEngine) {
+      this.renderVirtualGrid();
+    }
+    // Priority 2: Use WASM-powered rendering
+    else if (this.useWasmEngine && this.gridEngine) {
       this.renderWasmGrid();
-    } else {
-      // Fallback to traditional grid with smart loading
+    } 
+    // Fallback: Traditional grid with smart loading
+    else {
       this.renderSmartGrid();
     }
+  }
+  
+  renderVirtualGrid() {
+    console.log('[Renderer] Using VIRTUAL GRID with WASM reconciliation');
+    
+    // Create or clear container
+    document.getElementById('content').innerHTML = '<div class="video-grid video-grid-virtual"></div>';
+    const container = document.querySelector('.video-grid');
+    
+    // Make grid use absolute positioning for virtual scrolling
+    container.style.position = 'relative';
+    
+    // Initialize or refresh virtual grid
+    if (this.virtualGrid.isInitialized) {
+      this.virtualGrid.refresh();
+    } else {
+      this.virtualGrid.init(container);
+    }
+    
+    const stats = this.virtualGrid.getStats();
+    console.log(
+      `[Renderer] Virtual grid active: ` +
+      `${stats.renderedElements} rendered, ${stats.loadedVideos}/${stats.maxActiveVideos} loaded`
+    );
   }
 
   renderWasmGrid() {
@@ -1139,7 +1230,12 @@ class VdoTapesApp {
   observeVideoItemsWithSmartLoader() {
     const container = document.querySelector('.video-grid');
 
-    if (this.smartLoader && container) {
+    // Prefer WASM loader over smart loader
+    if (this.useWasmLoader && this.wasmLoader && container) {
+      console.log('[Renderer] Using WASM loader for video management');
+      this.wasmLoader.init(container);
+    } else if (this.smartLoader && container) {
+      console.log('[Renderer] Using IntersectionObserver-based smart loader');
       this.smartLoader.observeVideoItems(container);
     }
 
@@ -1570,6 +1666,17 @@ class VdoTapesApp {
     const clamped = Math.max(1, Math.min(12, parseInt(n, 10) || this.gridCols));
     if (clamped === this.gridCols) return;
     this.gridCols = clamped;
+    
+    // Update virtual grid configuration
+    if (this.useVirtualGrid && this.virtualGrid) {
+      this.virtualGrid.updateConfig(clamped);
+    }
+    
+    // Update WASM loader configuration
+    if (this.useWasmLoader && this.wasmLoader) {
+      this.wasmLoader.updateGridConfig(clamped);
+    }
+    
     this.updateGridSize();
   }
 
