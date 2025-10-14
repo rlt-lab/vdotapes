@@ -29,6 +29,7 @@ class VdoTapesApp {
     // WASM Grid Engine (high-performance filtering/sorting/viewport)
     this.gridEngine = null;
     this.useWasmEngine = false;
+    this.lastDisplayedCount = 0; // Track when filter changes require full re-render
 
     // Smart loading for all collections (no heavy virtualization)
     this.smartLoader = null;
@@ -730,7 +731,9 @@ class VdoTapesApp {
         this.displayedVideos = filteredVideos;
 
         console.log(`WASM filtered to ${filterCount} videos`);
-        this.renderGrid();
+        
+        // Use incremental updates instead of full re-render
+        this.renderWasmGrid();
         return;
       } catch (error) {
         console.error('Error using WASM engine, falling back to JS:', error);
@@ -812,16 +815,45 @@ class VdoTapesApp {
   renderWasmGrid() {
     // Ensure container exists
     let container = document.querySelector('.video-grid');
+    const isInitialRender = !container;
+    
+    // Check if we need a full re-render (filter/sort changed)
+    const needsFullRender = isInitialRender || this.lastDisplayedCount !== this.displayedVideos.length;
+    this.lastDisplayedCount = this.displayedVideos.length;
 
-    if (!container) {
-      // Initial render - create container
-      document.getElementById('content').innerHTML = '<div class="video-grid"></div>';
+    if (needsFullRender) {
+      // Full render when filter/sort changes
+      const gridHTML = this.displayedVideos
+        .map((video, index) => this.createVideoItemHTML(video, index))
+        .join('');
+      
+      document.getElementById('content').innerHTML = `<div class="video-grid">${gridHTML}</div>`;
       container = document.querySelector('.video-grid');
       this.updateGridLayout();
+      
+      // Reset reconciler state after full re-render
+      if (this.gridEngine) {
+        this.gridEngine.reset();
+        // Re-apply filters and sort after reset
+        this.gridEngine.applyFilters({
+          folder: this.currentFolder || null,
+          favorites_only: this.showingFavoritesOnly,
+          hidden_only: this.showingHiddenOnly,
+          show_hidden: false
+        });
+        this.gridEngine.setSortMode(this.currentSort);
+      }
+      
+      // Attach listeners and set up smart loading
+      this.attachVideoItemListeners();
+      this.observeVideoItemsWithSmartLoader();
+      
+      console.log(`WASM Full render: ${this.displayedVideos.length} videos`);
+      return;
     }
 
     try {
-      // Calculate viewport using WASM
+      // Calculate viewport using WASM for incremental updates
       const reconciliation = this.gridEngine.calculateViewport(
         window.pageYOffset,
         window.innerHeight,
@@ -852,7 +884,7 @@ class VdoTapesApp {
 
       // Log stats
       const stats = this.gridEngine.getStats();
-      console.log(`WASM Render: ${stats.visibleVideos} visible, ${stats.loadedVideos} loaded, ${stats.inViewport} in viewport`);
+      console.log(`WASM Incremental: ${stats.visibleVideos} visible, ${stats.loadedVideos} loaded, ${stats.inViewport} in viewport`);
 
     } catch (error) {
       console.error('Error in WASM rendering, falling back:', error);

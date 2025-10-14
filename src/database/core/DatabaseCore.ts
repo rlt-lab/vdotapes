@@ -187,25 +187,42 @@ export class DatabaseCore {
     if (!this.db) return;
 
     const indexes = [
+      // Video indexes
       'CREATE INDEX IF NOT EXISTS idx_videos_folder ON videos (folder)',
       'CREATE INDEX IF NOT EXISTS idx_videos_name ON videos (name)',
-      'CREATE INDEX IF NOT EXISTS idx_videos_last_modified ON videos (last_modified)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_last_modified ON videos (last_modified DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_size ON videos (size)',
       'CREATE INDEX IF NOT EXISTS idx_videos_path ON videos (path)',
       'CREATE INDEX IF NOT EXISTS idx_videos_created ON videos (created)',
       'CREATE INDEX IF NOT EXISTS idx_videos_folder_modified ON videos (folder, last_modified DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_size_desc ON videos (size DESC)',
-      'CREATE INDEX IF NOT EXISTS idx_favorites_added ON favorites (added_at DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_updated ON videos (updated_at)',
       'CREATE INDEX IF NOT EXISTS idx_videos_name_folder ON videos (name, folder)',
       'CREATE INDEX IF NOT EXISTS idx_videos_folder_size ON videos (folder, size DESC)',
-      'CREATE INDEX IF NOT EXISTS idx_ratings_rating ON ratings (rating)',
-      'CREATE INDEX IF NOT EXISTS idx_tags_name ON tags (name)',
-      'CREATE INDEX IF NOT EXISTS idx_video_tags_video ON video_tags (video_id)',
-      'CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags (tag_id)',
       'CREATE INDEX IF NOT EXISTS idx_videos_folder_date_size ON videos (folder, last_modified DESC, size DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_name_date ON videos (name, last_modified DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_size_date ON videos (size DESC, last_modified DESC)',
+      
+      // Favorites indexes
+      'CREATE INDEX IF NOT EXISTS idx_favorites_video_id ON favorites (video_id)',
+      'CREATE INDEX IF NOT EXISTS idx_favorites_added ON favorites (added_at DESC)',
+      
+      // Hidden files indexes
+      'CREATE INDEX IF NOT EXISTS idx_hidden_files_video_id ON hidden_files (video_id)',
+      'CREATE INDEX IF NOT EXISTS idx_hidden_files_hidden_at ON hidden_files (hidden_at DESC)',
+      
+      // Ratings indexes
+      'CREATE INDEX IF NOT EXISTS idx_ratings_video_id ON ratings (video_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ratings_rating ON ratings (rating)',
+      'CREATE INDEX IF NOT EXISTS idx_ratings_updated ON ratings (updated_at DESC)',
+      
+      // Tags indexes
+      'CREATE INDEX IF NOT EXISTS idx_tags_name ON tags (name)',
+      'CREATE INDEX IF NOT EXISTS idx_video_tags_video ON video_tags (video_id)',
+      'CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags (tag_id)',
+      
+      // Thumbnails indexes
+      'CREATE INDEX IF NOT EXISTS idx_thumbnails_video_id ON thumbnails (video_id)',
     ];
 
     indexes.forEach((sql) => {
