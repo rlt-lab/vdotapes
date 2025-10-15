@@ -35,10 +35,10 @@ class VideoManager {
    * Start periodic check for stuck videos
    */
   startRecoveryMechanism() {
-    // Check every 3 seconds for videos that are visible but not loaded
+    // Check every 2 seconds for videos that are visible but not loaded (more aggressive)
     this.recoveryCheckInterval = setInterval(() => {
       this.checkAndRecoverStuckVideos();
-    }, 3000);
+    }, 2000);
   }
 
   /**
@@ -68,7 +68,7 @@ class VideoManager {
       // Check if video has been stuck in loading state for too long
       const loadingStartTime = parseInt(item.dataset.loadingStartTime || '0');
       const now = Date.now();
-      const isStuckInLoading = isLoading && loadingStartTime > 0 && (now - loadingStartTime) > 15000; // 15 seconds
+      const isStuckInLoading = isLoading && loadingStartTime > 0 && (now - loadingStartTime) > 10000; // 10 seconds (reduced for faster recovery)
 
       // Video is stuck if:
       // 1. It's in viewport, not loaded, not loading, not error, and has no source
@@ -180,10 +180,9 @@ class VideoManager {
           container.title = video.name;
         }
 
-        // Hide thumbnail when video loads successfully
-        const thumbnail = container.querySelector('.video-thumbnail');
-        if (thumbnail) {
-          thumbnail.classList.add('hidden');
+        // Hide thumbnail when video loads successfully (smooth fade)
+        if (this.app.thumbnailPreloader) {
+          this.app.thumbnailPreloader.hideThumbnail(container);
         }
 
         this.startVideoPlayback(videoElement);

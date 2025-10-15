@@ -589,9 +589,12 @@ body {
   height: 100%;
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
   background-color: #1a1a1a;
   z-index: 1;
-  transition: opacity 0.3s ease;
+  opacity: 1;
+  transition: opacity 0.5s ease-in-out;
+  will-change: opacity;
 }
 
 .video-thumbnail.loaded {
@@ -601,6 +604,7 @@ body {
 .video-thumbnail.hidden {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.5s ease-in-out;
 }
 
 .thumbnail-loading {
@@ -621,10 +625,11 @@ body {
   50% { opacity: 1; }
 }
 
-/* Hide thumbnail when video is loaded */
+/* Hide thumbnail when video is loaded (smooth transition) */
 .video-item video.loaded ~ .video-thumbnail {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.5s ease-in-out;
 }
 
 /* Keep thumbnail visible on error */

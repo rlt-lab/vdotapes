@@ -40,8 +40,13 @@ class VdoTapesApp {
     // Virtual grid
     this.virtualGrid = null;
     this.useVirtualGrid = false;
+    
+    // Virtual grid settings (optimized for thumbnail preloading)
+    this.maxActiveVideos = 100;  // Increased to match buffer needs
+    this.bufferRows = 25;  // Large buffer for smooth pre-loading
 
     // Initialize modules
+    this.thumbnailPreloader = new ThumbnailPreloader({ app: this, maxConcurrent: 3, useFirstFrame: true });
     this.videoManager = new VideoManager(this);
     this.videoExpander = new VideoExpander(this);
     this.filterManager = new FilterManager(this);
@@ -117,10 +122,10 @@ class VdoTapesApp {
       this.virtualGrid = new window.VirtualVideoGrid({
         renderer: this,
         wasmEngine: this.gridEngine,
-        maxActiveVideos: 50,
+        maxActiveVideos: 100,  // Matches buffer needs (25 rows × 4 items = 100)
         itemHeight: 400,
         itemsPerRow: this.gridCols,
-        bufferRows: 1,
+        bufferRows: 25,  // MAXIMUM buffer for instant video availability
       });
       this.useVirtualGrid = true;
       console.log('✅ Virtual grid initialized successfully!');
@@ -135,10 +140,10 @@ class VdoTapesApp {
       this.wasmLoader = new window.VideoWasmLoader({
         renderer: this,
         wasmEngine: this.gridEngine,
-        maxActiveVideos: 50,
+        maxActiveVideos: 100,  // Matches buffer needs (25 rows × 4 items = 100)
         itemHeight: 400,
         itemsPerRow: this.gridCols,
-        bufferRows: 1
+        bufferRows: 25  // MAXIMUM buffer for instant video availability
       });
       this.useWasmLoader = true;
       console.log('✅ WASM video loader initialized successfully!');
@@ -151,10 +156,10 @@ class VdoTapesApp {
   setupSmartLoader() {
     try {
       this.smartLoader = new VideoSmartLoader({
-        maxActiveVideos: 50,
+        maxActiveVideos: 100,
         loadBuffer: 3,
       });
-      console.log('Smart video loader initialized (max: 50 videos)');
+      console.log('Smart video loader initialized (max: 100 videos)');
     } catch (error) {
       console.error('Error setting up smart loader:', error);
       this.smartLoader = null;
@@ -209,10 +214,28 @@ class VdoTapesApp {
 
           this.populateFolderDropdown();
 
+          // Load favorites and apply to video objects
           const favorites = await window.electronAPI.getFavorites();
           if (favorites && Array.isArray(favorites)) {
             this.favorites = new Set(favorites);
+            // Mark videos as favorited
+            this.allVideos.forEach(video => {
+              video.isFavorite = this.favorites.has(video.id);
+            });
             this.userDataManager.updateFavoritesCount();
+            console.log(`[App] Applied ${favorites.length} favorites to videos`);
+          }
+
+          // Load hidden files and apply to video objects
+          const hiddenFiles = await window.electronAPI.getHiddenFiles();
+          if (hiddenFiles && Array.isArray(hiddenFiles)) {
+            this.hiddenFiles = new Set(hiddenFiles);
+            // Mark videos as hidden
+            this.allVideos.forEach(video => {
+              video.isHidden = this.hiddenFiles.has(video.id);
+            });
+            this.userDataManager.updateHiddenCount();
+            console.log(`[App] Applied ${hiddenFiles.length} hidden files to videos`);
           }
         } catch (error) {
           console.error('Error loading videos from database:', error);
@@ -263,7 +286,10 @@ class VdoTapesApp {
         }
 
         try {
+          // Save last folder for auto-load on next launch
+          await window.electronAPI.saveLastFolder(folderPath);
           await this.userDataManager.saveSettings();
+          console.log('[App] Saved last folder:', folderPath);
         } catch (error) {
           console.error('Error saving settings:', error);
         }

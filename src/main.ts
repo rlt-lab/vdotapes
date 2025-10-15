@@ -14,6 +14,43 @@ let ipcHandlers: IPCHandlers | null = null;
 // Set app name
 app.setName('vdotapes');
 
+// ========================================
+// GPU/Hardware Acceleration Configuration
+// ========================================
+// Enable hardware acceleration for smooth video playback
+// Critical for playing many videos simultaneously
+
+// Enable GPU rasterization for better performance
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+
+// Enable zero-copy for video decoding (reduces memory copies)
+app.commandLine.appendSwitch('enable-zero-copy');
+
+// Platform-specific optimizations
+if (process.platform === 'darwin') {
+  // macOS: Use Metal for better performance
+  app.commandLine.appendSwitch('enable-metal');
+} else if (process.platform === 'linux') {
+  // Linux: Enable VA-API for hardware video decoding
+  app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
+  app.commandLine.appendSwitch('enable-accelerated-video-decode');
+} else if (process.platform === 'win32') {
+  // Windows: Enable D3D11 video decoding
+  app.commandLine.appendSwitch('enable-features', 'D3D11VideoDecoder');
+}
+
+// Increase video decoder threads for better performance with many videos
+app.commandLine.appendSwitch('video-threads', '8');
+
+// Enable hardware overlays for better video compositing
+app.commandLine.appendSwitch('enable-hardware-overlays');
+
+// Ignore GPU blocklist (force enable GPU even if blacklisted)
+// Remove this line if you experience crashes or visual glitches
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
+
+console.log('[GPU] Hardware acceleration enabled with platform-specific optimizations');
+
 interface FolderSelectionResult {
   readonly success: boolean;
   readonly path?: string;
@@ -38,6 +75,10 @@ function createWindow(): void {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
       allowRunningInsecureContent: false,
+      // Hardware acceleration settings
+      webgl: true,                    // Enable WebGL (GPU rendering)
+      backgroundThrottling: false,    // Don't throttle when in background
+      offscreen: false,               // Use GPU rendering
     },
     icon: resolveAppPath('app/assets/icon.png'),
     titleBarStyle: 'default',

@@ -17,6 +17,7 @@ import { IPCError } from '../types/errors';
 import VideoDatabase from './database/VideoDatabase';
 import VideoScanner from './video-scanner';
 import ThumbnailGenerator from './thumbnail-gen';
+import FolderMetadataManager from './folder-metadata';
 
 interface UserPreferences {
   readonly lastFolder?: string | null;
@@ -88,11 +89,13 @@ class IPCHandlers {
   private videoScanner: VideoScanner;
   private database: VideoDatabase;
   private thumbnailGenerator: any | null = null;
+  private folderMetadata: FolderMetadataManager;
   private isInitialized = false;
 
   constructor() {
     this.videoScanner = new VideoScanner();
     this.database = new VideoDatabase();
+    this.folderMetadata = new FolderMetadataManager();
   }
 
   async initialize(): Promise<void> {
@@ -185,6 +188,13 @@ class IPCHandlers {
         this.clearVideosFromFolder(lastFolder);
       }
 
+      // Initialize folder metadata (load existing or create new)
+      await this.folderMetadata.initializeFolder(folderPath);
+      const stats = this.folderMetadata.getStats();
+      if (stats) {
+        console.log(`[IPC] Folder metadata: ${stats.favoritesCount} favorites, ${stats.hiddenCount} hidden`);
+      }
+      
       const result = await this.videoScanner.scanVideos(folderPath);
 
       if (result.success && result.videos.length > 0) {
@@ -284,10 +294,11 @@ class IPCHandlers {
         await this.initialize();
       }
 
+      // Use per-folder metadata instead of database
       if (isFavorite) {
-        return this.database.addFavorite(videoId);
+        return await this.folderMetadata.addFavorite(videoId);
       } else {
-        return this.database.removeFavorite(videoId);
+        return await this.folderMetadata.removeFavorite(videoId);
       }
     } catch (error) {
       console.error('Error saving favorite:', error);
@@ -301,7 +312,8 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      return [...this.database.getFavoriteIds()];
+      // Use per-folder metadata instead of database
+      return this.folderMetadata.getFavorites();
     } catch (error) {
       console.error('Error getting favorites:', error);
       return [];
@@ -318,10 +330,11 @@ class IPCHandlers {
         await this.initialize();
       }
 
+      // Use per-folder metadata instead of database
       if (isHidden) {
-        return this.database.addHiddenFile(videoId);
+        return await this.folderMetadata.addHidden(videoId);
       } else {
-        return this.database.removeHiddenFile(videoId);
+        return await this.folderMetadata.removeHidden(videoId);
       }
     } catch (error) {
       console.error('Error saving hidden file:', error);
@@ -335,7 +348,8 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      return this.database.getHiddenFiles();
+      // Use per-folder metadata instead of database
+      return this.folderMetadata.getHidden();
     } catch (error) {
       console.error('Error getting hidden files:', error);
       return [];

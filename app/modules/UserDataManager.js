@@ -149,6 +149,8 @@ class UserDataManager {
     try {
       await new Promise((resolve) => setTimeout(resolve, this.app.SETTINGS_LOAD_DELAY));
 
+      console.log('[UserDataManager] Loading settings...');
+
       const preferences = await window.electronAPI.getUserPreferences();
       if (preferences) {
         this.app.gridCols = preferences.gridColumns || this.app.gridCols;
@@ -172,18 +174,40 @@ class UserDataManager {
         if (this.app.showingHiddenOnly) {
           document.getElementById('hiddenBtn').classList.add('active');
         }
+        
+        console.log('[UserDataManager] Preferences loaded:', {
+          gridCols: this.app.gridCols,
+          sort: this.app.currentSort,
+          favoritesOnly: this.app.showingFavoritesOnly,
+          hiddenOnly: this.app.showingHiddenOnly,
+          folderFilter: this.app.currentFolder
+        });
       }
 
       const favorites = await window.electronAPI.getFavorites();
       if (favorites && Array.isArray(favorites)) {
         this.app.favorites = new Set(favorites);
         this.updateFavoritesCount();
+        console.log(`[UserDataManager] Loaded ${favorites.length} favorites`);
       }
 
       const hiddenFiles = await window.electronAPI.getHiddenFiles();
       if (hiddenFiles && Array.isArray(hiddenFiles)) {
         this.app.hiddenFiles = new Set(hiddenFiles);
         this.updateHiddenCount();
+        console.log(`[UserDataManager] Loaded ${hiddenFiles.length} hidden files`);
+      }
+
+      // Auto-load last folder if it exists
+      const lastFolder = await window.electronAPI.getLastFolder();
+      if (lastFolder && lastFolder.trim() !== '') {
+        console.log(`[UserDataManager] Auto-loading last folder: ${lastFolder}`);
+        // Give UI time to initialize before scanning
+        setTimeout(() => {
+          this.app.scanVideos(lastFolder);
+        }, 500);
+      } else {
+        console.log('[UserDataManager] No last folder to auto-load');
       }
     } catch (error) {
       console.error('Error loading settings:', error);

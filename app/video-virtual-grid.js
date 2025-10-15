@@ -127,6 +127,19 @@ class VirtualVideoGrid {
         ? window.innerHeight
         : this.scrollContainer.clientHeight;
 
+      // Calculate current row for thumbnail pre-loading
+      const currentRow = Math.floor(scrollTop / this.itemHeight);
+
+      // Pre-load thumbnails ahead of scrolling
+      if (this.renderer?.thumbnailPreloader && this.renderer.displayedVideos) {
+        this.renderer.thumbnailPreloader.preloadForViewport(
+          this.renderer.displayedVideos,
+          currentRow,
+          this.bufferRows,
+          this.itemsPerRow
+        );
+      }
+
       // Ask WASM: "What should be visible?"
       const reconciliationResult = this.wasmEngine.calculateViewport(
         scrollTop,
@@ -214,6 +227,11 @@ class VirtualVideoGrid {
     // Load video if under limit
     if (this.loadedVideos.size < this.maxActiveVideos) {
       this.loadVideo(videoId, element);
+    } else {
+      console.warn(
+        `[VirtualGrid] Cannot load video ${videoId}: at limit (${this.loadedVideos.size}/${this.maxActiveVideos}). ` +
+        `This indicates bufferRows may be too large for maxActiveVideos.`
+      );
     }
   }
 
@@ -325,6 +343,11 @@ class VirtualVideoGrid {
     const src = videoEl.dataset.src;
     if (!src || videoEl.src) return; // Already loaded
 
+    // Apply thumbnail if available (show while loading)
+    if (this.renderer?.thumbnailPreloader) {
+      this.renderer.thumbnailPreloader.applyThumbnail(element, videoId);
+    }
+
     // Mark as loading
     element.classList.add('loading');
     this.loadedVideos.add(videoId);
@@ -370,6 +393,11 @@ class VirtualVideoGrid {
   unloadVideo(videoId, element) {
     const videoEl = element.querySelector('video');
     if (!videoEl || !videoEl.src) return;
+
+    // Show thumbnail before unloading (smooth transition)
+    if (this.renderer?.thumbnailPreloader) {
+      this.renderer.thumbnailPreloader.showThumbnail(element, videoId);
+    }
 
     // Stop and clear
     videoEl.pause();
