@@ -572,9 +572,63 @@ body {
   object-fit: cover;
   opacity: 0;
   transition: opacity 0.3s ease;
+  position: relative;
+  z-index: 2;
 }
 
 .video-item video.loaded {
+  opacity: 1;
+}
+
+/* Thumbnail overlay (shows before video loads or on error) */
+.video-thumbnail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-color: #1a1a1a;
+  z-index: 1;
+  transition: opacity 0.3s ease;
+}
+
+.video-thumbnail.loaded {
+  background-image: var(--thumbnail-url);
+}
+
+.video-thumbnail.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.thumbnail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  font-size: 14px;
+}
+
+.thumbnail-loading span {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* Hide thumbnail when video is loaded */
+.video-item video.loaded ~ .video-thumbnail {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Keep thumbnail visible on error */
+.video-item.error .video-thumbnail {
   opacity: 1;
 }
 

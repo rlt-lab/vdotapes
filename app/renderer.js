@@ -51,6 +51,11 @@ class VdoTapesApp {
     this.eventController = new EventController(this);
 
     this.init();
+    
+    // Expose recovery mechanism for debugging
+    window.debugRecoverVideos = () => {
+      this.videoManager.checkAndRecoverStuckVideos();
+    };
   }
 
   getDefaultGridCols() {

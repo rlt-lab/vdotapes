@@ -53,6 +53,11 @@ class GridRenderer {
 
     this.app.updateGridLayout();
     this.observeVideoItemsWithSmartLoader();
+
+    // Load thumbnails for visible videos (async, non-blocking)
+    setTimeout(() => {
+      this.app.videoManager.loadThumbnailsForVisibleVideos();
+    }, 500);
   }
 
   applyDomOperations(operations) {
@@ -136,6 +141,11 @@ class GridRenderer {
     this.app.updateGridLayout();
     this.observeVideoItemsWithSmartLoader();
 
+    // Load thumbnails for visible videos (async, non-blocking)
+    setTimeout(() => {
+      this.app.videoManager.loadThumbnailsForVisibleVideos();
+    }, 500);
+
     if (this.app.smartLoader) {
       const stats = this.app.smartLoader.getStats();
       console.log(
@@ -150,6 +160,13 @@ class GridRenderer {
 
     return `
       <div class="video-item ${!video.isValid && hasMetadata ? 'invalid-metadata' : ''}" data-index="${index}" data-video-id="${video.id}" data-folder="${video.folder || ''}" data-last-modified="${video.lastModified || 0}" title="${video.name}">
+        <!-- Thumbnail placeholder (shows while loading or on error) -->
+        <div class="video-thumbnail" data-video-id="${video.id}">
+          <div class="thumbnail-loading">
+            <span>Loading...</span>
+          </div>
+        </div>
+        
         <video 
           data-src="${video.path}"
           data-duration="${video.duration || ''}"
