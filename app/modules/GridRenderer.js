@@ -181,6 +181,7 @@ class GridRenderer {
           </svg>
         </button>
         ${this.createMetadataBadges(video)}
+        <div class="video-folder-label">${video.folder || 'Root folder'}</div>
         <div class="video-overlay">
           <div class="video-name" title="${video.folder || 'Root folder'}">
             ${video.folder || 'Root folder'}

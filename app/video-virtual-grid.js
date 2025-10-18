@@ -310,6 +310,12 @@ class VirtualVideoGrid {
     `;
     div.appendChild(favoriteBtn);
     
+    // Add folder label
+    const folderLabel = document.createElement('div');
+    folderLabel.className = 'video-folder-label';
+    folderLabel.textContent = video.folder || 'Root folder';
+    div.appendChild(folderLabel);
+    
     // Add overlay with info
     const overlay = document.createElement('div');
     overlay.className = 'video-overlay';
