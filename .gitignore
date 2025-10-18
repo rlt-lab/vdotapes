@@ -9,6 +9,15 @@ dist/
 build/
 out/
 
+# Rust build artifacts (native modules)
+**/target/
+
+# Database files (runtime data)
+.vdotapes/
+*.db
+*.db-shm
+*.db-wal
+
 # Environment variables
 .env
 .env.local

@@ -11,6 +11,10 @@ class VideoSmartLoader {
     this.activeVideos = new Set();
     this.maxActiveVideos = options.maxActiveVideos || 30;
 
+    // Buffer zones for loading vs unloading (configurable)
+    this.loadBufferZone = options.loadBufferZone || 500;       // Start loading when 500px from viewport
+    this.unloadBufferZone = options.unloadBufferZone || 2500; // Only unload when 2500px from viewport (prevents blank thumbnails on quick scroll back)
+
     // Performance tracking
     this.lastCleanup = Date.now();
     this.cleanupInterval = 3000; // 3 seconds - aggressive cleanup
@@ -21,6 +25,11 @@ class VideoSmartLoader {
   init() {
     this.setupIntersectionObserver();
     this.startPeriodicCleanup();
+    
+    console.log(
+      `[SmartLoader] Initialized with load buffer: ${this.loadBufferZone}px, ` +
+      `unload buffer: ${this.unloadBufferZone}px (${this.unloadBufferZone / this.loadBufferZone}x larger)`
+    );
   }
 
   setupIntersectionObserver() {
@@ -44,14 +53,14 @@ class VideoSmartLoader {
             // Load and play video
             this.loadVideo(video, entry.target, videoId);
           } else {
-            // Just pause, don't unload immediately
+            // Just pause, don't unload immediately (cleanup handles unloading with larger buffer)
             this.pauseVideo(video, videoId);
           }
         });
       },
       {
         root: null,
-        rootMargin: '500px', // Large margin for smooth loading
+        rootMargin: `${this.loadBufferZone}px`, // Early loading buffer
         threshold: 0.1,
       }
     );
@@ -230,13 +239,14 @@ class VideoSmartLoader {
       const videoItems = document.querySelectorAll('.video-item');
       const visibleVideos = new Set();
 
-      // Find currently visible videos (must match IntersectionObserver rootMargin)
+      // Find videos within UNLOAD buffer (larger than load buffer to prevent flashing)
       videoItems.forEach((item) => {
         const rect = item.getBoundingClientRect();
-        const bufferZone = 500; // Match IntersectionObserver rootMargin
-        const isVisible = rect.top < window.innerHeight + bufferZone && rect.bottom > -bufferZone;
+        // Use larger unload buffer zone - keeps videos loaded longer after scrolling past
+        const isInUnloadBuffer = rect.top < window.innerHeight + this.unloadBufferZone && 
+                                 rect.bottom > -this.unloadBufferZone;
 
-        if (isVisible) {
+        if (isInUnloadBuffer) {
           const videoId = item.dataset.videoId;
           if (videoId) {
             visibleVideos.add(videoId);
@@ -277,7 +287,7 @@ class VideoSmartLoader {
 
       if (unloadedCount > 0) {
         console.log(
-          `[SmartLoader] Cleanup: Unloaded ${unloadedCount} videos. ` +
+          `[SmartLoader] Cleanup: Unloaded ${unloadedCount} videos beyond ${this.unloadBufferZone}px buffer. ` +
           `Now: ${this.loadedVideos.size} loaded, ${this.activeVideos.size} active (max: ${this.maxActiveVideos})`
         );
       }

@@ -436,40 +436,47 @@ export class VideoOperations {
     const db = this.core.getConnection();
 
     try {
+      // NEW: Read directly from videos table columns (no JOINs needed!)
       let query = `
-        SELECT v.*, 
-               CASE WHEN f.video_id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
-               r.rating
-        FROM videos v
-        LEFT JOIN favorites f ON v.id = f.video_id
-        LEFT JOIN ratings r ON v.id = r.video_id
+        SELECT 
+          id, name, path, folder, size, duration, width, height,
+          codec, bitrate, last_modified, created, added_at, updated_at,
+          favorite, hidden, rating, notes, last_viewed, view_count
+        FROM videos
         WHERE 1=1
       `;
 
       const params: SqliteValue[] = [];
 
-      // Apply filters
+      // Apply filters (using new columns directly)
       if (filters.folder) {
-        query += ' AND v.folder = ?';
+        query += ' AND folder = ?';
         params.push(filters.folder);
       }
 
       if (filters.favoritesOnly) {
-        query += ' AND f.video_id IS NOT NULL';
+        query += ' AND favorite = 1';
+      }
+      
+      if (filters.hiddenOnly) {
+        query += ' AND hidden = 1';
+      } else {
+        // By default, don't show hidden videos
+        query += ' AND hidden = 0';
       }
 
       if (filters.ratingMin) {
-        query += ' AND r.rating >= ?';
+        query += ' AND rating >= ?';
         params.push(filters.ratingMin);
       }
 
       if (filters.search) {
-        query += ' AND (v.name LIKE ? OR v.folder LIKE ?)';
+        query += ' AND (name LIKE ? OR folder LIKE ?)';
         const searchTerm = `%${filters.search}%`;
         params.push(searchTerm, searchTerm);
       }
 
-      // Apply sorting
+      // Apply sorting (using new columns directly)
       const sortField = filters.sortBy || 'folder';
 
       let orderBy = '';
@@ -478,20 +485,20 @@ export class VideoOperations {
           // No sorting - return in natural order
           break;
         case 'name':
-          orderBy = 'v.name';
+          orderBy = 'name';
           break;
         case 'date':
-          orderBy = 'v.last_modified DESC';
+          orderBy = 'last_modified DESC';
           break;
         case 'size':
-          orderBy = 'v.size';
+          orderBy = 'size';
           break;
         case 'rating':
-          orderBy = 'r.rating DESC, v.name';
+          orderBy = 'rating DESC, name';
           break;
         case 'folder':
         default:
-          orderBy = 'v.folder, v.last_modified DESC';
+          orderBy = 'folder, last_modified DESC';
           break;
       }
 
@@ -522,8 +529,12 @@ export class VideoOperations {
         added_at?: string;
         updated_at?: string;
         duration?: number;
-        is_favorite?: number;
+        favorite?: number;
+        hidden?: number;
         rating?: number;
+        notes?: string;
+        last_viewed?: number;
+        view_count?: number;
         [key: string]: unknown;
       }>;
 
@@ -538,8 +549,12 @@ export class VideoOperations {
         addedAt: video.added_at || '',
         updatedAt: video.updated_at || '',
         duration: video.duration || undefined,
-        isFavorite: Boolean(video.is_favorite),
+        isFavorite: Boolean(video.favorite),
+        isHidden: Boolean(video.hidden),
         rating: video.rating as Rating || undefined,
+        notes: video.notes || '',
+        lastViewed: video.last_viewed as Timestamp || undefined,
+        viewCount: video.view_count || 0,
       }));
     } catch (error) {
       console.error('Error getting videos from database:', error);

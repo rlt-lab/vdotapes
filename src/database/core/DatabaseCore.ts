@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 
 import Database from 'better-sqlite3';
+import { needsV2Migration, migrateToV2 } from '../migrations/migrateToV2';
 
 export interface DatabaseConfiguration {
   readonly dataDir?: string;
@@ -45,6 +46,21 @@ export class DatabaseCore {
       this.configureDatabaseSettings();
       
       await this.createTables();
+      
+      // Run v2 schema migration if needed
+      if (needsV2Migration(this.db)) {
+        console.log('[Database] v2 migration needed, running...');
+        const result = migrateToV2(this.db);
+        if (result.success) {
+          console.log('[Database] v2 migration successful:', result.stats);
+        } else {
+          console.error('[Database] v2 migration failed:', result.error);
+          throw new Error(`Migration failed: ${result.error}`);
+        }
+      } else {
+        console.log('[Database] Already on v2 schema');
+      }
+      
       await this.runMigrations();
 
       console.log('Database core initialized successfully');

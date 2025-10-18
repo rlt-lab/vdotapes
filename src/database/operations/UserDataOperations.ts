@@ -32,6 +32,7 @@ export class UserDataOperations {
 
   /**
    * Add video to favorites
+   * DUAL-WRITE: Updates both new column and old table for rollback safety
    */
   addFavorite(videoId: VideoId): boolean {
     if (!this.core.isInitialized()) {
@@ -41,11 +42,31 @@ export class UserDataOperations {
     const monitoredQuery = this.monitor.wrapQuery('addFavorite', () => {
       try {
         const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          INSERT OR IGNORE INTO favorites (video_id) VALUES (?)
+        
+        // NEW: Write to videos.favorite column
+        const updateVideoStmt = db.prepare(`
+          UPDATE videos SET favorite = 1 WHERE id = ?
         `);
-
-        stmt.run(videoId);
+        updateVideoStmt.run(videoId);
+        
+        // OLD: Keep writing to old table (for rollback safety)
+        // Check if backup table exists first
+        const tables = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_favorites_v1'"
+        ).get();
+        
+        if (tables) {
+          // Still have old table structure, write to it
+          const insertFavStmt = db.prepare(`
+            INSERT OR IGNORE INTO _backup_favorites_v1 (video_id) VALUES (?)
+          `);
+          insertFavStmt.run(videoId);
+        }
+        
+        // Invalidate cache
+        this.cache.invalidate('favorites');
+        this.cache.invalidate('getVideos');
+        
         return true;
       } catch (error) {
         console.error('Error adding favorite:', error);
@@ -58,6 +79,7 @@ export class UserDataOperations {
 
   /**
    * Remove video from favorites
+   * DUAL-WRITE: Updates both new column and old table for rollback safety
    */
   removeFavorite(videoId: VideoId): boolean {
     if (!this.core.isInitialized()) {
@@ -67,11 +89,29 @@ export class UserDataOperations {
     const monitoredQuery = this.monitor.wrapQuery('removeFavorite', () => {
       try {
         const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          DELETE FROM favorites WHERE video_id = ?
+        
+        // NEW: Write to videos.favorite column
+        const updateVideoStmt = db.prepare(`
+          UPDATE videos SET favorite = 0 WHERE id = ?
         `);
-
-        stmt.run(videoId);
+        updateVideoStmt.run(videoId);
+        
+        // OLD: Keep writing to old table (for rollback safety)
+        const tables = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_favorites_v1'"
+        ).get();
+        
+        if (tables) {
+          const deleteFavStmt = db.prepare(`
+            DELETE FROM _backup_favorites_v1 WHERE video_id = ?
+          `);
+          deleteFavStmt.run(videoId);
+        }
+        
+        // Invalidate cache
+        this.cache.invalidate('favorites');
+        this.cache.invalidate('getVideos');
+        
         return true;
       } catch (error) {
         console.error('Error removing favorite:', error);
@@ -152,6 +192,7 @@ export class UserDataOperations {
 
   /**
    * Save rating for a video
+   * DUAL-WRITE: Updates both new column and old table for rollback safety
    */
   saveRating(videoId: VideoId, rating: Rating): boolean {
     if (!this.core.isInitialized()) {
@@ -165,12 +206,30 @@ export class UserDataOperations {
         }
 
         const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          INSERT OR REPLACE INTO ratings (video_id, rating, updated_at)
-          VALUES (?, ?, CURRENT_TIMESTAMP)
+        
+        // NEW: Write to videos.rating column
+        const updateVideoStmt = db.prepare(`
+          UPDATE videos SET rating = ? WHERE id = ?
         `);
-
-        stmt.run(videoId, rating);
+        updateVideoStmt.run(rating, videoId);
+        
+        // OLD: Keep writing to old table (for rollback safety)
+        const tables = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_ratings_v1'"
+        ).get();
+        
+        if (tables) {
+          const insertRatingStmt = db.prepare(`
+            INSERT OR REPLACE INTO _backup_ratings_v1 (video_id, rating, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `);
+          insertRatingStmt.run(videoId, rating);
+        }
+        
+        // Invalidate cache
+        this.cache.invalidate('ratings');
+        this.cache.invalidate('getVideos');
+        
         return true;
       } catch (error) {
         console.error('Error saving rating:', error);
@@ -209,6 +268,7 @@ export class UserDataOperations {
 
   /**
    * Remove rating for a video
+   * DUAL-WRITE: Updates both new column and old table for rollback safety
    */
   removeRating(videoId: VideoId): boolean {
     if (!this.core.isInitialized()) {
@@ -218,11 +278,29 @@ export class UserDataOperations {
     const monitoredQuery = this.monitor.wrapQuery('removeRating', () => {
       try {
         const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          DELETE FROM ratings WHERE video_id = ?
+        
+        // NEW: Write to videos.rating column
+        const updateVideoStmt = db.prepare(`
+          UPDATE videos SET rating = 0 WHERE id = ?
         `);
-
-        stmt.run(videoId);
+        updateVideoStmt.run(videoId);
+        
+        // OLD: Keep writing to old table (for rollback safety)
+        const tables = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_ratings_v1'"
+        ).get();
+        
+        if (tables) {
+          const deleteRatingStmt = db.prepare(`
+            DELETE FROM _backup_ratings_v1 WHERE video_id = ?
+          `);
+          deleteRatingStmt.run(videoId);
+        }
+        
+        // Invalidate cache
+        this.cache.invalidate('ratings');
+        this.cache.invalidate('getVideos');
+        
         return true;
       } catch (error) {
         console.error('Error removing rating:', error);
@@ -262,6 +340,7 @@ export class UserDataOperations {
 
   /**
    * Add video to hidden files
+   * DUAL-WRITE: Updates both new column and old table for rollback safety
    */
   addHiddenFile(videoId: VideoId): boolean {
     if (!this.core.isInitialized()) {
@@ -271,11 +350,29 @@ export class UserDataOperations {
     const monitoredQuery = this.monitor.wrapQuery('addHiddenFile', () => {
       try {
         const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          INSERT OR IGNORE INTO hidden_files (video_id) VALUES (?)
+        
+        // NEW: Write to videos.hidden column
+        const updateVideoStmt = db.prepare(`
+          UPDATE videos SET hidden = 1 WHERE id = ?
         `);
-
-        stmt.run(videoId);
+        updateVideoStmt.run(videoId);
+        
+        // OLD: Keep writing to old table (for rollback safety)
+        const tables = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_hidden_files_v1'"
+        ).get();
+        
+        if (tables) {
+          const insertHiddenStmt = db.prepare(`
+            INSERT OR IGNORE INTO _backup_hidden_files_v1 (video_id) VALUES (?)
+          `);
+          insertHiddenStmt.run(videoId);
+        }
+        
+        // Invalidate cache
+        this.cache.invalidate('hidden');
+        this.cache.invalidate('getVideos');
+        
         return true;
       } catch (error) {
         console.error('Error adding hidden file:', error);
@@ -288,6 +385,7 @@ export class UserDataOperations {
 
   /**
    * Remove video from hidden files
+   * DUAL-WRITE: Updates both new column and old table for rollback safety
    */
   removeHiddenFile(videoId: VideoId): boolean {
     if (!this.core.isInitialized()) {
@@ -297,11 +395,29 @@ export class UserDataOperations {
     const monitoredQuery = this.monitor.wrapQuery('removeHiddenFile', () => {
       try {
         const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          DELETE FROM hidden_files WHERE video_id = ?
+        
+        // NEW: Write to videos.hidden column
+        const updateVideoStmt = db.prepare(`
+          UPDATE videos SET hidden = 0 WHERE id = ?
         `);
-
-        stmt.run(videoId);
+        updateVideoStmt.run(videoId);
+        
+        // OLD: Keep writing to old table (for rollback safety)
+        const tables = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_hidden_files_v1'"
+        ).get();
+        
+        if (tables) {
+          const deleteHiddenStmt = db.prepare(`
+            DELETE FROM _backup_hidden_files_v1 WHERE video_id = ?
+          `);
+          deleteHiddenStmt.run(videoId);
+        }
+        
+        // Invalidate cache
+        this.cache.invalidate('hidden');
+        this.cache.invalidate('getVideos');
+        
         return true;
       } catch (error) {
         console.error('Error removing hidden file:', error);
