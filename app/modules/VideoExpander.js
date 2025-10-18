@@ -97,6 +97,13 @@ class VideoExpander {
             tagInput.value = '';
             const tags = await window.electronAPI.listTags(video.id);
             this.renderTagList(tags || [], video.id);
+            
+            // Update app state so filters work immediately
+            this.app.videoTags[video.id] = tags || [];
+            // Reload all tags for autocomplete
+            if (this.app.tagManager) {
+              await this.app.tagManager.loadAllTags();
+            }
           }
         }
       };
@@ -129,6 +136,13 @@ class VideoExpander {
       await window.electronAPI.removeTag(videoId, tagName);
       const tags = await window.electronAPI.listTags(videoId);
       this.renderTagList(tags || [], videoId);
+      
+      // Update app state so filters work immediately
+      this.app.videoTags[videoId] = tags || [];
+      // Reload all tags for autocomplete
+      if (this.app.tagManager) {
+        await this.app.tagManager.loadAllTags();
+      }
     } catch (error) {
       console.error('Error removing tag:', error);
     }

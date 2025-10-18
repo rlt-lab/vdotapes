@@ -230,10 +230,10 @@ class VideoSmartLoader {
       const videoItems = document.querySelectorAll('.video-item');
       const visibleVideos = new Set();
 
-      // Find currently visible videos (tighter buffer zone)
+      // Find currently visible videos (must match IntersectionObserver rootMargin)
       videoItems.forEach((item) => {
         const rect = item.getBoundingClientRect();
-        const bufferZone = 100; // Tighter - only 100px buffer
+        const bufferZone = 500; // Match IntersectionObserver rootMargin
         const isVisible = rect.top < window.innerHeight + bufferZone && rect.bottom > -bufferZone;
 
         if (isVisible) {

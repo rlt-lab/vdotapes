@@ -68,13 +68,12 @@ class VideoManager {
       // Check if video has been stuck in loading state for too long
       const loadingStartTime = parseInt(item.dataset.loadingStartTime || '0');
       const now = Date.now();
-      const isStuckInLoading = isLoading && loadingStartTime > 0 && (now - loadingStartTime) > 10000; // 10 seconds (reduced for faster recovery)
+      const isStuckInLoading = isLoading && loadingStartTime > 0 && (now - loadingStartTime) > 15000; // 15 seconds
 
-      // Video is stuck if:
-      // 1. It's in viewport, not loaded, not loading, not error, and has no source
-      // 2. OR it's been stuck in loading state for too long
-      const isStuckNoSource = !isLoaded && !isLoading && !isError && !hasSrc && hasDataSrc;
-      const isStuck = isStuckNoSource || isStuckInLoading;
+      // Video is stuck ONLY if it's been in loading state for too long
+      // Don't try to "recover" videos that were intentionally unloaded by SmartLoader
+      // The IntersectionObserver will handle reloading them when they scroll into view
+      const isStuck = isStuckInLoading;
 
       if (isStuck) {
         const reason = isStuckInLoading 
@@ -389,14 +388,14 @@ class VideoManager {
 
       try {
         // Try to get cached thumbnail first
-        let thumbnailData = await window.api.getThumbnail(videoId);
+        let thumbnailData = await window.electronAPI.getThumbnail(videoId);
         
         // If not cached, generate it (async, don't block)
         if (!thumbnailData) {
           const videoPath = videoElement.dataset.src;
           if (videoPath) {
             // Generate at 10% into the video for better preview
-            const result = await window.api.generateThumbnail(videoPath, null);
+            const result = await window.electronAPI.generateThumbnail(videoPath, null);
             if (result.success && result.thumbnailPath) {
               thumbnailData = { thumbnail_path: result.thumbnailPath };
             }

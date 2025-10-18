@@ -47,8 +47,8 @@ class EventController {
       this.app.filterManager.toggleHiddenView();
     });
 
-    // Backup dropdown
-    this.setupBackupMenu();
+    // Dropdown menus
+    this.setupDropdowns();
 
     // Grid size controls
     this.setupGridControls();
@@ -83,59 +83,87 @@ class EventController {
     this.setupContextMenu();
   }
 
-  setupBackupMenu() {
-    const backupBtn = document.getElementById('backupBtn');
-    const backupMenu = document.getElementById('backupMenu');
-    const backupExport = document.getElementById('backupExport');
-    const backupImport = document.getElementById('backupImport');
+  setupDropdowns() {
+    // Sort dropdown
+    const sortBtn = document.getElementById('sortBtn');
+    const sortMenu = document.getElementById('sortMenu');
+    const sortDropdown = document.getElementById('sortDropdown');
 
-    if (backupBtn && backupMenu) {
-      backupBtn.addEventListener('click', (e) => {
+    if (sortBtn && sortMenu) {
+      sortBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        backupMenu.classList.toggle('open');
-      });
-      document.addEventListener('click', () => backupMenu.classList.remove('open'));
-    }
-
-    if (backupExport) {
-      backupExport.addEventListener('click', async () => {
-        try {
-          backupMenu?.classList.remove('open');
-          const res = await window.electronAPI.exportBackupToFile();
-          if (res?.success) {
-            this.app.uiHelper.showStatus(`Exported ${res.count} items → ${res.path}`);
-          } else if (res?.error !== 'canceled') {
-            this.app.uiHelper.showStatus('Backup export failed');
-            console.error('Export error:', res?.error);
-          }
-        } catch (e) {
-          console.error('Export failed:', e);
-        }
+        sortMenu.classList.toggle('show');
+        const settingsMenu = document.getElementById('settingsMenu');
+        if (settingsMenu) settingsMenu.classList.remove('show');
       });
     }
 
-    if (backupImport) {
-      backupImport.addEventListener('click', async () => {
-        try {
-          backupMenu?.classList.remove('open');
-          const res = await window.electronAPI.importBackupFromFile();
-          if (res?.success) {
-            this.app.uiHelper.showStatus(`Imported: ${res.imported}, skipped: ${res.skipped}`);
-            await this.app.userDataManager.refreshFavoritesFromDatabase();
-            const hidden = await window.electronAPI.getHiddenFiles();
-            if (hidden && Array.isArray(hidden)) {
-              this.app.hiddenFiles = new Set(hidden);
-              this.app.userDataManager.updateHiddenCount();
+    // Settings dropdown (formerly backup)
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsMenu = document.getElementById('settingsMenu');
+    const settingsDropdown = document.getElementById('settingsDropdown');
+
+    if (settingsBtn && settingsMenu) {
+      settingsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        settingsMenu.classList.toggle('show');
+        if (sortMenu) sortMenu.classList.remove('show');
+      });
+
+      // Backup export
+      const backupExport = document.getElementById('backupExport');
+      if (backupExport) {
+        backupExport.addEventListener('click', async () => {
+          try {
+            settingsMenu.classList.remove('show');
+            const res = await window.electronAPI.exportBackupToFile();
+            if (res?.success) {
+              this.app.uiHelper.showStatus(`Exported ${res.count} items → ${res.path}`);
+            } else if (res?.error !== 'canceled') {
+              this.app.uiHelper.showStatus('Backup export failed');
+              console.error('Export error:', res?.error);
             }
-          } else if (res?.error !== 'canceled') {
-            this.app.uiHelper.showStatus('Backup import failed');
-            console.error('Import error:', res?.error);
+          } catch (e) {
+            console.error('Export failed:', e);
           }
-        } catch (e) {
-          console.error('Import failed:', e);
-        }
-      });
+        });
+      }
+
+      // Backup import
+      const backupImport = document.getElementById('backupImport');
+      if (backupImport) {
+        backupImport.addEventListener('click', async () => {
+          try {
+            settingsMenu.classList.remove('show');
+            const res = await window.electronAPI.importBackupFromFile();
+            if (res?.success) {
+              this.app.uiHelper.showStatus(`Imported: ${res.imported}, skipped: ${res.skipped}`);
+              await this.app.userDataManager.refreshFavoritesFromDatabase();
+              const hidden = await window.electronAPI.getHiddenFiles();
+              if (hidden && Array.isArray(hidden)) {
+                this.app.hiddenFiles = new Set(hidden);
+                this.app.userDataManager.updateHiddenCount();
+              }
+            } else if (res?.error !== 'canceled') {
+              this.app.uiHelper.showStatus('Backup import failed');
+              console.error('Import error:', res?.error);
+            }
+          } catch (e) {
+            console.error('Import failed:', e);
+          }
+        });
+      }
     }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+      if (sortDropdown && !sortDropdown.contains(e.target)) {
+        if (sortMenu) sortMenu.classList.remove('show');
+      }
+      if (settingsDropdown && !settingsDropdown.contains(e.target)) {
+        if (settingsMenu) settingsMenu.classList.remove('show');
+      }
+    });
   }
 
   setupGridControls() {
@@ -213,17 +241,27 @@ class EventController {
         }
       }
 
-      // Shortcuts in expanded view
+      // Shortcuts in expanded view (require Shift modifier to avoid conflicts with typing)
       const overlay = document.getElementById('expandedOverlay');
       if (overlay && overlay.classList.contains('active')) {
+        // Don't trigger shortcuts if user is typing in an input field
+        const isTyping = document.activeElement && 
+                        (document.activeElement.tagName === 'INPUT' || 
+                         document.activeElement.tagName === 'TEXTAREA');
+        if (isTyping) return;
+
         const current = this.app.currentExpandedVideo;
         if (!current) return;
 
-        if (e.key.toLowerCase() === 'f') {
+        // Use Shift+key for shortcuts
+        if (e.shiftKey && e.key.toLowerCase() === 'f') {
+          e.preventDefault();
           this.app.userDataManager.toggleFavorite(current.id, e);
-        } else if (e.key.toLowerCase() === 'h') {
+        } else if (e.shiftKey && e.key.toLowerCase() === 'h') {
+          e.preventDefault();
           this.app.userDataManager.toggleHiddenFile(current.id, e);
-        } else if (e.key.toLowerCase() === 'o') {
+        } else if (e.shiftKey && e.key.toLowerCase() === 'o') {
+          e.preventDefault();
           this.openFileLocation(current.path);
         }
       }

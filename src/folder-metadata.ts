@@ -341,6 +341,30 @@ export class FolderMetadataManager {
   }
 
   /**
+   * Get all unique tags in the current folder with usage counts
+   */
+  getAllTags(): Array<{ name: string; usage: number }> {
+    if (!this.metadata) {
+      console.warn('[FolderMetadata] Cannot get all tags: no folder initialized');
+      return [];
+    }
+
+    const tagCounts: Record<string, number> = {};
+
+    // Count occurrences of each tag across all videos
+    Object.entries(this.metadata.tags).forEach(([videoId, tags]) => {
+      for (const tag of tags) {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      }
+    });
+
+    // Convert to array and sort by usage (descending)
+    return Object.entries(tagCounts)
+      .map(([name, usage]) => ({ name, usage }))
+      .sort((a, b) => b.usage - a.usage);
+  }
+
+  /**
    * Get current folder path
    */
   getCurrentFolder(): string | null {

@@ -122,7 +122,8 @@ class FilterManager {
           folder: this.app.currentFolder,
           favoritesOnly: this.app.showingFavoritesOnly,
           hiddenOnly: this.app.showingHiddenOnly,
-          sort: this.app.currentSort
+          sort: this.app.currentSort,
+          tags: this.app.activeTags
         });
         
         const filtersChanged = this.app.lastFilterState !== currentFilterState;
@@ -137,7 +138,24 @@ class FilterManager {
 
         this.app.gridEngine.setSortMode(this.app.currentSort);
 
-        const filteredVideos = this.app.gridEngine.getFilteredVideos();
+        let filteredVideos = this.app.gridEngine.getFilteredVideos();
+
+        // Apply tag filtering in JS (WASM doesn't support tags yet)
+        if (this.app.activeTags && this.app.activeTags.length > 0) {
+          filteredVideos = filteredVideos.filter(video => {
+            const videoTags = this.app.videoTags[video.id] || [];
+            if (this.app.tagFilterMode === 'AND') {
+              // AND logic: video must have ALL selected tags
+              return this.app.activeTags.every(tag => videoTags.includes(tag));
+            } else {
+              // OR logic: video must have at least ONE selected tag
+              return this.app.activeTags.some(tag => videoTags.includes(tag));
+            }
+          });
+          const mode = this.app.tagFilterMode === 'AND' ? 'all' : 'any';
+          console.log(`[Filter] Tag filter (${this.app.tagFilterMode}) applied: ${filteredVideos.length} videos match ${mode} tags [${this.app.activeTags.join(', ')}]`);
+        }
+
         this.app.displayedVideos = filteredVideos;
 
         console.log(`WASM filtered to ${filterCount} videos`);
@@ -171,6 +189,22 @@ class FilterManager {
       filtered = filtered.filter((video) => !this.app.hiddenFiles.has(video.id));
     }
 
+    // Apply tag filtering
+    if (this.app.activeTags && this.app.activeTags.length > 0) {
+      filtered = filtered.filter(video => {
+        const videoTags = this.app.videoTags[video.id] || [];
+        if (this.app.tagFilterMode === 'AND') {
+          // AND logic: video must have ALL selected tags
+          return this.app.activeTags.every(tag => videoTags.includes(tag));
+        } else {
+          // OR logic: video must have at least ONE selected tag
+          return this.app.activeTags.some(tag => videoTags.includes(tag));
+        }
+      });
+      const mode = this.app.tagFilterMode === 'AND' ? 'all' : 'any';
+      console.log(`[Filter] Tag filter (${this.app.tagFilterMode}) applied: ${filtered.length} videos match ${mode} tags [${this.app.activeTags.join(', ')}]`);
+    }
+
     if (this.app.currentSort === 'folder') {
       filtered.sort((a, b) => {
         const folderA = a.folder || '';
@@ -188,6 +222,12 @@ class FilterManager {
         const dateB = b.lastModified || 0;
         return dateB - dateA;
       });
+    } else if (this.app.currentSort === 'shuffle') {
+      // Fisher-Yates shuffle for proper randomization
+      for (let i = filtered.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+      }
     }
 
     this.app.displayedVideos = filtered;

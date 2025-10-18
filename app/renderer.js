@@ -13,7 +13,7 @@ class VdoTapesApp {
     this.displayedVideos = [];
     this.folders = [];
     this.currentFolder = '';
-    this.currentSort = 'folder';
+    this.currentSort = 'shuffle';  // Default to random order
     this.gridCols = this.getDefaultGridCols();
     this.isLoading = false;
     this.favorites = new Set();
@@ -21,8 +21,13 @@ class VdoTapesApp {
     this.hiddenFiles = new Set();
     this.showingHiddenOnly = false;
     this.multiViewQueue = [];
-    this.previousViewState = { folder: '', sort: 'folder' };
+    this.previousViewState = { folder: '', sort: 'shuffle' };
     this.currentExpandedIndex = -1;
+    
+    // Tags
+    this.activeTags = [];  // Array of active tag names for filtering
+    this.videoTags = {};   // Map: videoId -> [tag names]
+    this.tagFilterMode = 'OR';  // 'AND' or 'OR' - how to combine multiple tags
 
     // WASM Grid Engine
     this.gridEngine = null;
@@ -50,6 +55,7 @@ class VdoTapesApp {
     this.videoManager = new VideoManager(this);
     this.videoExpander = new VideoExpander(this);
     this.filterManager = new FilterManager(this);
+    this.tagManager = new TagManager(this);
     this.gridRenderer = new GridRenderer(this);
     this.userDataManager = new UserDataManager(this);
     this.uiHelper = new UIHelper(this);
@@ -80,6 +86,10 @@ class VdoTapesApp {
     this.setupWasmEngine();
     this.uiHelper.updateGridLayout();
     this.userDataManager.updateFavoritesCount();
+    this.tagManager.initialize();
+
+    // Set initial sort button state
+    this.filterManager.updateSortButtonStates();
 
     await this.userDataManager.loadSettings();
 
@@ -236,6 +246,28 @@ class VdoTapesApp {
             });
             this.userDataManager.updateHiddenCount();
             console.log(`[App] Applied ${hiddenFiles.length} hidden files to videos`);
+          }
+
+          // Load tags for all videos
+          console.log('[App] Loading tags for all videos...');
+          this.videoTags = {};
+          let totalTags = 0;
+          for (const video of this.allVideos) {
+            try {
+              const tags = await window.electronAPI.listTags(video.id);
+              if (tags && tags.length > 0) {
+                this.videoTags[video.id] = tags;
+                totalTags += tags.length;
+              }
+            } catch (error) {
+              console.error(`Error loading tags for ${video.id}:`, error);
+            }
+          }
+          console.log(`[App] Loaded tags for ${Object.keys(this.videoTags).length} videos (${totalTags} total tags)`);
+
+          // Load all unique tags for autocomplete
+          if (this.tagManager) {
+            await this.tagManager.loadAllTags();
           }
         } catch (error) {
           console.error('Error loading videos from database:', error);

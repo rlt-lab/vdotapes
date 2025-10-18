@@ -478,7 +478,8 @@ class IPCHandlers {
   ): Promise<boolean> {
     try {
       if (!this.isInitialized) await this.initialize();
-      return this.database.addTagToVideo(videoId, tagName);
+      // Use per-folder metadata instead of database
+      return await this.folderMetadata.addTag(videoId, tagName);
     } catch (error) {
       console.error('Error adding tag:', error);
       return false;
@@ -492,7 +493,8 @@ class IPCHandlers {
   ): Promise<boolean> {
     try {
       if (!this.isInitialized) await this.initialize();
-      return this.database.removeTagFromVideo(videoId, tagName);
+      // Use per-folder metadata instead of database
+      return await this.folderMetadata.removeTag(videoId, tagName);
     } catch (error) {
       console.error('Error removing tag:', error);
       return false;
@@ -502,7 +504,8 @@ class IPCHandlers {
   async handleTagsList(_event: IpcMainInvokeEvent, videoId: VideoId): Promise<string[]> {
     try {
       if (!this.isInitialized) await this.initialize();
-      return this.database.listTagsForVideo(videoId);
+      // Use per-folder metadata instead of database
+      return this.folderMetadata.getTags(videoId);
     } catch (error) {
       console.error('Error listing tags:', error);
       return [];
@@ -512,7 +515,8 @@ class IPCHandlers {
   async handleTagsAll(): Promise<Array<{ name: string; usage: number }>> {
     try {
       if (!this.isInitialized) await this.initialize();
-      return this.database.listAllTags();
+      // Use per-folder metadata instead of database
+      return this.folderMetadata.getAllTags();
     } catch (error) {
       console.error('Error listing all tags:', error);
       return [];
