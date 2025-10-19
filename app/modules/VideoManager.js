@@ -361,6 +361,9 @@ class VideoManager {
 
       item.classList.remove('loading');
       videoElement.classList.remove('loaded');
+      
+      // Clear loading timestamp to prevent false "stuck" detection
+      item.dataset.loadingStartTime = '';
 
       if (this.app.smartLoader) {
         this.app.smartLoader.loadedVideos.delete(videoId);

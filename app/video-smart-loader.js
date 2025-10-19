@@ -93,6 +93,9 @@ class VideoSmartLoader {
           
           item.classList.remove('loading');
           video.classList.remove('loaded');
+          
+          // Clear loading timestamp to prevent false "stuck" detection
+          item.dataset.loadingStartTime = '';
         }
       });
       
@@ -282,6 +285,9 @@ class VideoSmartLoader {
           this.activeVideos.delete(videoId);
           item.classList.remove('loading');
           video?.classList.remove('loaded');
+          
+          // CRITICAL: Clear loading timestamp to prevent false "stuck" detection
+          item.dataset.loadingStartTime = '';
         }
       });
 
