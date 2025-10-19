@@ -247,19 +247,18 @@ class GridRenderer {
   observeVideoItemsWithSmartLoader() {
     const container = document.querySelector('.video-grid');
 
-    if (this.app.useWasmLoader && this.app.wasmLoader && container) {
-      console.log('[Renderer] Using WASM loader for video management');
-      this.app.wasmLoader.init(container);
-    } else if (this.app.smartLoader && container) {
+    if (this.app.smartLoader && container) {
       console.log('[Renderer] Using IntersectionObserver-based smart loader');
       this.app.smartLoader.observeVideoItems(container);
     }
 
     const items = document.querySelectorAll('.video-item');
-    items.forEach((item, index) => {
+    items.forEach((item) => {
       item.addEventListener('click', (e) => {
         if (!e.target.closest('.video-favorite')) {
-          this.app.videoExpander.expandVideo(index);
+          // Use data-index attribute, not loop index, to handle re-sorting correctly
+          const videoIndex = parseInt(item.dataset.index, 10);
+          this.app.videoExpander.expandVideo(videoIndex);
         }
       });
     });
