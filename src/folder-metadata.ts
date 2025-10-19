@@ -8,8 +8,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { VideoId } from '../types/core';
 
-interface FolderMetadata {
-  version: string;
+// v1.0.0 format (legacy)
+interface FolderMetadataV1 {
+  version: '1.0.0';
   folderPath: string;
   lastUpdated: string;
   favorites: VideoId[];
@@ -18,10 +19,32 @@ interface FolderMetadata {
   tags: Record<VideoId, string[]>;
 }
 
+// v2.0.0 format (current) - per-video objects
+interface VideoMetadata {
+  favorite: boolean;
+  hidden: boolean;
+  rating: number | null;
+  tags: string[];
+  notes: string;
+  lastViewed: string | null;
+  viewCount: number;
+}
+
+interface FolderMetadataV2 {
+  version: '2.0.0';
+  folderPath: string;
+  lastUpdated: string;
+  videos: Record<VideoId, VideoMetadata>;
+}
+
+type FolderMetadata = FolderMetadataV2;
+
+export type { VideoMetadata, FolderMetadataV2 };
+
 export class FolderMetadataManager {
   private readonly METADATA_DIR = '.vdotapes';
   private readonly METADATA_FILE = 'metadata.json';
-  private readonly VERSION = '1.0.0';
+  private readonly VERSION = '2.0.0';
 
   private currentFolderPath: string | null = null;
   private metadata: FolderMetadata | null = null;
@@ -52,21 +75,29 @@ export class FolderMetadataManager {
       if (fs.existsSync(metadataPath)) {
         // Load existing metadata
         const data = fs.readFileSync(metadataPath, 'utf-8');
-        this.metadata = JSON.parse(data);
-        console.log(`[FolderMetadata] Loaded metadata from ${folderPath}`);
-        if (this.metadata) {
-          console.log(`[FolderMetadata] ${this.metadata.favorites.length} favorites, ${this.metadata.hidden.length} hidden`);
+        const rawMetadata = JSON.parse(data);
+        
+        // Migrate from v1 to v2 if needed
+        if (rawMetadata.version === '1.0.0') {
+          console.log(`[FolderMetadata] Migrating from v1.0.0 to v2.0.0`);
+          this.metadata = this.migrateV1ToV2(rawMetadata as FolderMetadataV1);
+          await this.save(); // Save migrated format
+        } else {
+          this.metadata = rawMetadata as FolderMetadataV2;
         }
+        
+        console.log(`[FolderMetadata] Loaded metadata v${this.metadata.version} from ${folderPath}`);
+        const videoCount = Object.keys(this.metadata.videos).length;
+        const favoriteCount = Object.values(this.metadata.videos).filter(v => v.favorite).length;
+        const hiddenCount = Object.values(this.metadata.videos).filter(v => v.hidden).length;
+        console.log(`[FolderMetadata] ${videoCount} videos tracked, ${favoriteCount} favorites, ${hiddenCount} hidden`);
       } else {
         // Create new metadata
         this.metadata = {
           version: this.VERSION,
           folderPath,
           lastUpdated: new Date().toISOString(),
-          favorites: [],
-          hidden: [],
-          ratings: {},
-          tags: {}
+          videos: {}
         };
 
         // Create .vdotapes directory if it doesn't exist
@@ -87,12 +118,87 @@ export class FolderMetadataManager {
         version: this.VERSION,
         folderPath,
         lastUpdated: new Date().toISOString(),
-        favorites: [],
-        hidden: [],
-        ratings: {},
-        tags: {}
+        videos: {}
       };
     }
+  }
+
+  /**
+   * Migrate v1 metadata to v2 format
+   */
+  private migrateV1ToV2(v1: FolderMetadataV1): FolderMetadataV2 {
+    const videos: Record<VideoId, VideoMetadata> = {};
+    
+    // Convert favorites array to per-video objects
+    for (const videoId of v1.favorites) {
+      if (!videos[videoId]) {
+        videos[videoId] = this.createDefaultVideoMetadata();
+      }
+      videos[videoId].favorite = true;
+    }
+    
+    // Convert hidden array
+    for (const videoId of v1.hidden) {
+      if (!videos[videoId]) {
+        videos[videoId] = this.createDefaultVideoMetadata();
+      }
+      videos[videoId].hidden = true;
+    }
+    
+    // Convert ratings object
+    for (const [videoId, rating] of Object.entries(v1.ratings)) {
+      const id = videoId as VideoId;
+      if (!videos[id]) {
+        videos[id] = this.createDefaultVideoMetadata();
+      }
+      videos[id].rating = rating;
+    }
+    
+    // Convert tags object
+    for (const [videoId, tags] of Object.entries(v1.tags)) {
+      const id = videoId as VideoId;
+      if (!videos[id]) {
+        videos[id] = this.createDefaultVideoMetadata();
+      }
+      videos[id].tags = [...tags];
+    }
+    
+    return {
+      version: '2.0.0',
+      folderPath: v1.folderPath,
+      lastUpdated: new Date().toISOString(),
+      videos
+    };
+  }
+
+  /**
+   * Create default video metadata
+   */
+  private createDefaultVideoMetadata(): VideoMetadata {
+    return {
+      favorite: false,
+      hidden: false,
+      rating: null,
+      tags: [],
+      notes: '',
+      lastViewed: null,
+      viewCount: 0
+    };
+  }
+
+  /**
+   * Get or create video metadata
+   */
+  private getOrCreateVideo(videoId: VideoId): VideoMetadata {
+    if (!this.metadata) {
+      throw new Error('Metadata not initialized');
+    }
+    
+    if (!this.metadata.videos[videoId]) {
+      this.metadata.videos[videoId] = this.createDefaultVideoMetadata();
+    }
+    
+    return this.metadata.videos[videoId];
   }
 
   /**
@@ -129,7 +235,10 @@ export class FolderMetadataManager {
    * Get all favorites for the current folder
    */
   getFavorites(): VideoId[] {
-    return this.metadata?.favorites || [];
+    if (!this.metadata) return [];
+    return Object.entries(this.metadata.videos)
+      .filter(([_, video]) => video.favorite)
+      .map(([videoId, _]) => videoId as VideoId);
   }
 
   /**
@@ -142,8 +251,9 @@ export class FolderMetadataManager {
     }
 
     try {
-      if (!this.metadata.favorites.includes(videoId)) {
-        this.metadata.favorites.push(videoId);
+      const video = this.getOrCreateVideo(videoId);
+      if (!video.favorite) {
+        video.favorite = true;
         await this.save();
         console.log(`[FolderMetadata] Added favorite: ${videoId}`);
       }
@@ -164,9 +274,8 @@ export class FolderMetadataManager {
     }
 
     try {
-      const index = this.metadata.favorites.indexOf(videoId);
-      if (index > -1) {
-        this.metadata.favorites.splice(index, 1);
+      if (this.metadata.videos[videoId]) {
+        this.metadata.videos[videoId].favorite = false;
         await this.save();
         console.log(`[FolderMetadata] Removed favorite: ${videoId}`);
       }
@@ -181,7 +290,10 @@ export class FolderMetadataManager {
    * Get all hidden videos for the current folder
    */
   getHidden(): VideoId[] {
-    return this.metadata?.hidden || [];
+    if (!this.metadata) return [];
+    return Object.entries(this.metadata.videos)
+      .filter(([_, video]) => video.hidden)
+      .map(([videoId, _]) => videoId as VideoId);
   }
 
   /**
@@ -194,8 +306,9 @@ export class FolderMetadataManager {
     }
 
     try {
-      if (!this.metadata.hidden.includes(videoId)) {
-        this.metadata.hidden.push(videoId);
+      const video = this.getOrCreateVideo(videoId);
+      if (!video.hidden) {
+        video.hidden = true;
         await this.save();
         console.log(`[FolderMetadata] Added hidden: ${videoId}`);
       }
@@ -216,9 +329,8 @@ export class FolderMetadataManager {
     }
 
     try {
-      const index = this.metadata.hidden.indexOf(videoId);
-      if (index > -1) {
-        this.metadata.hidden.splice(index, 1);
+      if (this.metadata.videos[videoId]) {
+        this.metadata.videos[videoId].hidden = false;
         await this.save();
         console.log(`[FolderMetadata] Removed hidden: ${videoId}`);
       }
@@ -233,7 +345,7 @@ export class FolderMetadataManager {
    * Get rating for a video
    */
   getRating(videoId: VideoId): number | null {
-    return this.metadata?.ratings[videoId] ?? null;
+    return this.metadata?.videos[videoId]?.rating ?? null;
   }
 
   /**
@@ -246,7 +358,8 @@ export class FolderMetadataManager {
     }
 
     try {
-      this.metadata.ratings[videoId] = rating;
+      const video = this.getOrCreateVideo(videoId);
+      video.rating = rating;
       await this.save();
       console.log(`[FolderMetadata] Set rating for ${videoId}: ${rating}`);
       return true;
@@ -266,9 +379,11 @@ export class FolderMetadataManager {
     }
 
     try {
-      delete this.metadata.ratings[videoId];
-      await this.save();
-      console.log(`[FolderMetadata] Removed rating for ${videoId}`);
+      if (this.metadata.videos[videoId]) {
+        this.metadata.videos[videoId].rating = null;
+        await this.save();
+        console.log(`[FolderMetadata] Removed rating for ${videoId}`);
+      }
       return true;
     } catch (error) {
       console.error('[FolderMetadata] Error removing rating:', error);
@@ -280,7 +395,7 @@ export class FolderMetadataManager {
    * Get tags for a video
    */
   getTags(videoId: VideoId): string[] {
-    return this.metadata?.tags[videoId] || [];
+    return this.metadata?.videos[videoId]?.tags || [];
   }
 
   /**
@@ -293,12 +408,9 @@ export class FolderMetadataManager {
     }
 
     try {
-      if (!this.metadata.tags[videoId]) {
-        this.metadata.tags[videoId] = [];
-      }
-      
-      if (!this.metadata.tags[videoId].includes(tag)) {
-        this.metadata.tags[videoId].push(tag);
+      const video = this.getOrCreateVideo(videoId);
+      if (!video.tags.includes(tag)) {
+        video.tags.push(tag);
         await this.save();
         console.log(`[FolderMetadata] Added tag "${tag}" to ${videoId}`);
       }
@@ -319,16 +431,11 @@ export class FolderMetadataManager {
     }
 
     try {
-      if (this.metadata.tags[videoId]) {
-        const index = this.metadata.tags[videoId].indexOf(tag);
+      const video = this.metadata.videos[videoId];
+      if (video && video.tags) {
+        const index = video.tags.indexOf(tag);
         if (index > -1) {
-          this.metadata.tags[videoId].splice(index, 1);
-          
-          // Clean up empty tag arrays
-          if (this.metadata.tags[videoId].length === 0) {
-            delete this.metadata.tags[videoId];
-          }
-          
+          video.tags.splice(index, 1);
           await this.save();
           console.log(`[FolderMetadata] Removed tag "${tag}" from ${videoId}`);
         }
@@ -352,8 +459,8 @@ export class FolderMetadataManager {
     const tagCounts: Record<string, number> = {};
 
     // Count occurrences of each tag across all videos
-    Object.entries(this.metadata.tags).forEach(([videoId, tags]) => {
-      for (const tag of tags) {
+    Object.values(this.metadata.videos).forEach((video) => {
+      for (const tag of video.tags) {
         tagCounts[tag] = (tagCounts[tag] || 0) + 1;
       }
     });
@@ -380,6 +487,13 @@ export class FolderMetadataManager {
   }
 
   /**
+   * Get all video metadata for syncing to database
+   */
+  getAllVideoMetadata(): Record<VideoId, VideoMetadata> {
+    return this.metadata?.videos || {};
+  }
+
+  /**
    * Get statistics about the metadata
    */
   getStats() {
@@ -387,11 +501,13 @@ export class FolderMetadataManager {
       return null;
     }
 
+    const videos = Object.values(this.metadata.videos);
     return {
-      favoritesCount: this.metadata.favorites.length,
-      hiddenCount: this.metadata.hidden.length,
-      ratingsCount: Object.keys(this.metadata.ratings).length,
-      tagsCount: Object.keys(this.metadata.tags).length,
+      videosCount: videos.length,
+      favoritesCount: videos.filter(v => v.favorite).length,
+      hiddenCount: videos.filter(v => v.hidden).length,
+      ratingsCount: videos.filter(v => v.rating !== null).length,
+      tagsCount: videos.reduce((sum, v) => sum + v.tags.length, 0),
       lastUpdated: this.metadata.lastUpdated
     };
   }

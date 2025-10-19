@@ -203,6 +203,9 @@ class IPCHandlers {
           console.warn('Failed to save some videos to database');
         }
 
+        // Sync folder metadata to database (folder metadata is source of truth)
+        this.syncFolderMetadataToDatabase();
+
         // Save the new folder as the last scanned folder
         this.database.saveLastFolder(folderPath);
       }
@@ -216,6 +219,57 @@ class IPCHandlers {
         videos: [],
         folders: [],
       };
+    }
+  }
+
+  /**
+   * Sync folder metadata to database
+   * Folder metadata is the source of truth, database is the cache
+   */
+  private syncFolderMetadataToDatabase(): void {
+    try {
+      const allMetadata = this.folderMetadata.getAllVideoMetadata();
+      const videoIds = Object.keys(allMetadata);
+      
+      if (videoIds.length === 0) {
+        console.log('[IPC] No folder metadata to sync');
+        return;
+      }
+
+      console.log(`[IPC] Syncing ${videoIds.length} videos from folder metadata to database...`);
+      let synced = 0;
+
+      for (const videoId of videoIds) {
+        const metadata = allMetadata[videoId as VideoId];
+        
+        // Sync favorite
+        if (metadata.favorite) {
+          this.database.addFavorite(videoId as VideoId);
+          synced++;
+        }
+        
+        // Sync hidden
+        if (metadata.hidden) {
+          this.database.addHiddenFile(videoId as VideoId);
+          synced++;
+        }
+        
+        // Sync rating
+        if (metadata.rating !== null && metadata.rating >= 1 && metadata.rating <= 5) {
+          this.database.saveRating(videoId as VideoId, metadata.rating as Rating);
+          synced++;
+        }
+        
+        // Sync tags
+        for (const tag of metadata.tags) {
+          this.database.addTag(videoId as VideoId, tag);
+          synced++;
+        }
+      }
+
+      console.log(`[IPC] Synced ${synced} metadata items from folder to database`);
+    } catch (error) {
+      console.error('[IPC] Error syncing folder metadata to database:', error);
     }
   }
 
@@ -294,12 +348,20 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      // Use per-folder metadata instead of database
+      // Write-through: folder metadata (source of truth) + database (cache)
+      let success: boolean;
       if (isFavorite) {
-        return await this.folderMetadata.addFavorite(videoId);
+        success = await this.folderMetadata.addFavorite(videoId);
+        if (success) {
+          this.database.addFavorite(videoId);
+        }
       } else {
-        return await this.folderMetadata.removeFavorite(videoId);
+        success = await this.folderMetadata.removeFavorite(videoId);
+        if (success) {
+          this.database.removeFavorite(videoId);
+        }
       }
+      return success;
     } catch (error) {
       console.error('Error saving favorite:', error);
       return false;
@@ -330,12 +392,20 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      // Use per-folder metadata instead of database
+      // Write-through: folder metadata (source of truth) + database (cache)
+      let success: boolean;
       if (isHidden) {
-        return await this.folderMetadata.addHidden(videoId);
+        success = await this.folderMetadata.addHidden(videoId);
+        if (success) {
+          this.database.addHiddenFile(videoId);
+        }
       } else {
-        return await this.folderMetadata.removeHidden(videoId);
+        success = await this.folderMetadata.removeHidden(videoId);
+        if (success) {
+          this.database.removeHiddenFile(videoId);
+        }
       }
+      return success;
     } catch (error) {
       console.error('Error saving hidden file:', error);
       return false;
@@ -366,7 +436,12 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      return this.database.saveRating(videoId, rating);
+      // Write-through: folder metadata (source of truth) + database (cache)
+      const success = await this.folderMetadata.setRating(videoId, rating);
+      if (success) {
+        this.database.saveRating(videoId, rating);
+      }
+      return success;
     } catch (error) {
       console.error('Error saving rating:', error);
       return false;
@@ -379,7 +454,9 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      return this.database.getRating(videoId);
+      // Read from folder metadata (source of truth)
+      const rating = this.folderMetadata.getRating(videoId);
+      return (rating !== null && rating >= 1 && rating <= 5) ? (rating as Rating) : null;
     } catch (error) {
       console.error('Error getting rating:', error);
       return null;
@@ -392,7 +469,12 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      return this.database.removeRating(videoId);
+      // Write-through: folder metadata (source of truth) + database (cache)
+      const success = await this.folderMetadata.removeRating(videoId);
+      if (success) {
+        this.database.removeRating(videoId);
+      }
+      return success;
     } catch (error) {
       console.error('Error removing rating:', error);
       return false;
@@ -478,8 +560,12 @@ class IPCHandlers {
   ): Promise<boolean> {
     try {
       if (!this.isInitialized) await this.initialize();
-      // Use per-folder metadata instead of database
-      return await this.folderMetadata.addTag(videoId, tagName);
+      // Write-through: folder metadata (source of truth) + database (cache)
+      const success = await this.folderMetadata.addTag(videoId, tagName);
+      if (success) {
+        this.database.addTag(videoId, tagName);
+      }
+      return success;
     } catch (error) {
       console.error('Error adding tag:', error);
       return false;
@@ -493,8 +579,12 @@ class IPCHandlers {
   ): Promise<boolean> {
     try {
       if (!this.isInitialized) await this.initialize();
-      // Use per-folder metadata instead of database
-      return await this.folderMetadata.removeTag(videoId, tagName);
+      // Write-through: folder metadata (source of truth) + database (cache)
+      const success = await this.folderMetadata.removeTag(videoId, tagName);
+      if (success) {
+        this.database.removeTag(videoId, tagName);
+      }
+      return success;
     } catch (error) {
       console.error('Error removing tag:', error);
       return false;
@@ -504,7 +594,7 @@ class IPCHandlers {
   async handleTagsList(_event: IpcMainInvokeEvent, videoId: VideoId): Promise<string[]> {
     try {
       if (!this.isInitialized) await this.initialize();
-      // Use per-folder metadata instead of database
+      // Read from folder metadata (source of truth)
       return this.folderMetadata.getTags(videoId);
     } catch (error) {
       console.error('Error listing tags:', error);
