@@ -6,7 +6,7 @@
     <title>vdotapes</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self';"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self';"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -200,11 +200,6 @@
     </div>
 
     <script src="video-smart-loader.js"></script>
-    <script src="video-wasm-loader.js"></script>
-    <script src="video-virtual-grid.js"></script>
-
-    <!-- Load WASM Grid Engine -->
-    <script type="module" src="wasm-init.js"></script>
 
     <!-- Load modular components -->
     <script src="modules/ThumbnailPreloader.js"></script>

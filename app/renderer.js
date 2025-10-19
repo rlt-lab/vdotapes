@@ -29,26 +29,8 @@ class VdoTapesApp {
     this.videoTags = {};   // Map: videoId -> [tag names]
     this.tagFilterMode = 'OR';  // 'AND' or 'OR' - how to combine multiple tags
 
-    // WASM Grid Engine
-    this.gridEngine = null;
-    this.useWasmEngine = false;
-    this.lastFilterState = null;
-
-    // Smart loading
-    this.smartLoader = null;
-    this.useSmartLoading = true;
-
-    // WASM-powered video loader
-    this.wasmLoader = null;
-    this.useWasmLoader = false;
-
-    // Virtual grid
-    this.virtualGrid = null;
-    this.useVirtualGrid = false;
-    
-    // Virtual grid settings (optimized for thumbnail preloading)
-    this.maxActiveVideos = 100;  // Increased to match buffer needs
-    this.bufferRows = 25;  // Large buffer for smooth pre-loading
+    // Smart loading (single video loading system)
+    this.smartLoader = null
 
     // Initialize modules
     this.thumbnailPreloader = new ThumbnailPreloader({ app: this, maxConcurrent: 3, useFirstFrame: true });
@@ -83,7 +65,6 @@ class VdoTapesApp {
 
     this.eventController.setupEventListeners();
     this.setupSmartLoader();
-    this.setupWasmEngine();
     this.uiHelper.updateGridLayout();
     this.userDataManager.updateFavoritesCount();
     this.tagManager.initialize();
@@ -96,71 +77,6 @@ class VdoTapesApp {
     window.addEventListener('beforeunload', () => {
       this.userDataManager.saveSettings();
     });
-  }
-
-  setupWasmEngine() {
-    window.addEventListener('wasm-ready', () => {
-      try {
-        if (window.VideoGridEngine) {
-          this.gridEngine = new window.VideoGridEngine(50);
-          this.useWasmEngine = true;
-          console.log('✅ WASM Grid Engine initialized successfully!');
-
-          if (window.VirtualVideoGrid && !this.virtualGrid) {
-            this.initializeVirtualGrid();
-          }
-
-          if (window.VideoWasmLoader && !this.wasmLoader) {
-            this.initializeWasmLoader();
-          }
-        }
-      } catch (error) {
-        console.error('Failed to initialize WASM engine:', error);
-        this.useWasmEngine = false;
-      }
-    });
-
-    window.addEventListener('wasm-failed', () => {
-      console.warn('WASM module failed to load, using JavaScript fallback');
-      this.useWasmEngine = false;
-      this.useWasmLoader = false;
-    });
-  }
-
-  initializeVirtualGrid() {
-    try {
-      this.virtualGrid = new window.VirtualVideoGrid({
-        renderer: this,
-        wasmEngine: this.gridEngine,
-        maxActiveVideos: 100,  // Matches buffer needs (25 rows × 4 items = 100)
-        itemHeight: 400,
-        itemsPerRow: this.gridCols,
-        bufferRows: 25,  // MAXIMUM buffer for instant video availability
-      });
-      this.useVirtualGrid = true;
-      console.log('✅ Virtual grid initialized successfully!');
-    } catch (error) {
-      console.error('Failed to initialize virtual grid:', error);
-      this.useVirtualGrid = false;
-    }
-  }
-
-  initializeWasmLoader() {
-    try {
-      this.wasmLoader = new window.VideoWasmLoader({
-        renderer: this,
-        wasmEngine: this.gridEngine,
-        maxActiveVideos: 100,  // Matches buffer needs (25 rows × 4 items = 100)
-        itemHeight: 400,
-        itemsPerRow: this.gridCols,
-        bufferRows: 25  // MAXIMUM buffer for instant video availability
-      });
-      this.useWasmLoader = true;
-      console.log('✅ WASM video loader initialized successfully!');
-    } catch (error) {
-      console.error('Failed to initialize WASM loader:', error);
-      this.useWasmLoader = false;
-    }
   }
 
   setupSmartLoader() {
@@ -276,35 +192,6 @@ class VdoTapesApp {
           this.populateFolderDropdown();
         }
 
-        if (this.useWasmEngine && this.gridEngine) {
-          try {
-            const wasmVideos = this.allVideos.map(v => ({
-              id: v.id,
-              name: v.name,
-              path: v.path,
-              folder: v.folder || null,
-              size: v.size || 0,
-              last_modified: v.lastModified || 0,
-              duration: v.duration || null,
-              width: v.width || null,
-              height: v.height || null,
-              resolution: v.resolution || null,
-              codec: v.codec || null,
-              bitrate: v.bitrate || null,
-              is_favorite: v.isFavorite === true,
-              is_hidden: this.hiddenFiles.has(v.id)
-            }));
-
-            this.gridEngine.setVideos(wasmVideos);
-            this.gridEngine.updateFavorites(Array.from(this.favorites));
-            this.gridEngine.updateHidden(Array.from(this.hiddenFiles));
-            console.log(`Loaded ${wasmVideos.length} videos into WASM engine`);
-          } catch (error) {
-            console.error('Error loading videos into WASM engine:', error);
-            this.useWasmEngine = false;
-          }
-        }
-
         this.applyCurrentFilters();
         this.uiHelper.hideProgress();
         this.uiHelper.showFilterControls();
@@ -357,23 +244,10 @@ class VdoTapesApp {
     this.gridRenderer.renderGrid();
   }
 
-  renderWasmGrid() {
-    this.gridRenderer.renderWasmGrid();
-  }
-
   setGridCols(n) {
     const clamped = Math.max(1, Math.min(12, parseInt(n, 10) || this.gridCols));
     if (clamped === this.gridCols) return;
     this.gridCols = clamped;
-
-    if (this.useVirtualGrid && this.virtualGrid) {
-      this.virtualGrid.updateConfig(clamped);
-    }
-
-    if (this.useWasmLoader && this.wasmLoader) {
-      this.wasmLoader.updateGridConfig(clamped);
-    }
-
     this.uiHelper.updateGridSize();
   }
 
