@@ -55,7 +55,11 @@ class FilterManager {
     });
 
     const frag = document.createDocumentFragment();
-    items.forEach((el) => frag.appendChild(el));
+    items.forEach((el, newIndex) => {
+      // CRITICAL: Update data-index to match new position after sorting
+      el.dataset.index = newIndex.toString();
+      frag.appendChild(el);
+    });
     container.appendChild(frag);
     this.refreshVisibleVideos();
   }
@@ -277,6 +281,7 @@ class FilterManager {
     const container = document.querySelector('.video-grid');
     if (!container) return;
 
+    // Rebuild displayedVideos array to match current DOM order (important after sorting)
     const items = Array.from(container.querySelectorAll('.video-item:not(.is-hidden-by-filter)'));
     this.app.displayedVideos = items
       .map((item) => {
@@ -284,6 +289,11 @@ class FilterManager {
         return this.app.allVideos.find((v) => v.id === videoId);
       })
       .filter((v) => v !== undefined);
+
+    // Update data-index attributes to match displayedVideos array positions
+    items.forEach((item, index) => {
+      item.dataset.index = index.toString();
+    });
 
     this.app.updateStatusMessage();
   }

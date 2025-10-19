@@ -155,8 +155,9 @@ class UserDataManager {
       if (preferences) {
         this.app.gridCols = preferences.gridColumns || this.app.gridCols;
         this.app.currentSort = preferences.sortPreference?.sortBy || 'folder';
-        this.app.showingFavoritesOnly = preferences.favoritesOnly || false;
-        this.app.showingHiddenOnly = preferences.hiddenOnly || false;
+        // Don't restore favorites-only or hidden-only state - always show all videos on startup
+        this.app.showingFavoritesOnly = false;
+        this.app.showingHiddenOnly = false;
         this.app.currentFolder = preferences.folderFilter || '';
 
         const gridInput = document.getElementById('gridCols');
@@ -167,13 +168,9 @@ class UserDataManager {
         if (folderSel) folderSel.value = this.app.currentFolder;
         this.app.filterManager.updateSortButtonStates();
 
-        if (this.app.showingFavoritesOnly) {
-          document.getElementById('favoritesBtn').classList.add('active');
-        }
-
-        if (this.app.showingHiddenOnly) {
-          document.getElementById('hiddenBtn').classList.add('active');
-        }
+        // Ensure buttons reflect the reset state (not active on startup)
+        document.getElementById('favoritesBtn').classList.remove('active');
+        document.getElementById('hiddenBtn').classList.remove('active');
         
         console.log('[UserDataManager] Preferences loaded:', {
           gridCols: this.app.gridCols,
