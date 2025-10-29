@@ -38,6 +38,7 @@ class VdoTapesApp {
     this.videoExpander = new VideoExpander(this);
     this.filterManager = new FilterManager(this);
     this.tagManager = new TagManager(this);
+    this.tagCloudManager = new TagCloudManager(this);
     this.gridRenderer = new GridRenderer(this);
     this.userDataManager = new UserDataManager(this);
     this.uiHelper = new UIHelper(this);
@@ -68,6 +69,7 @@ class VdoTapesApp {
     this.uiHelper.updateGridLayout();
     this.userDataManager.updateFavoritesCount();
     this.tagManager.initialize();
+    this.tagCloudManager.initialize();
 
     // Set initial sort button state
     this.filterManager.updateSortButtonStates();

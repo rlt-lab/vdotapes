@@ -54,6 +54,13 @@
             <button class="tag-mode-toggle" id="tagModeToggle" title="Toggle AND/OR mode">OR</button>
           </div>
 
+          <!-- Tag cloud button -->
+          <button class="icon-btn tag-cloud-btn" id="tagCloudBtn" title="Show tag cloud">
+            <svg viewBox="0 0 24 24">
+              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+            </svg>
+          </button>
+
           <!-- Folder select (compact) -->
           <select id="folderSelect" class="compact-select" title="Filter by folder">
             <option value="">All folders</option>
@@ -162,6 +169,19 @@
       </div>
     </div>
 
+    <div class="tag-cloud-overlay" id="tagCloudOverlay">
+      <div class="tag-cloud-container">
+        <button class="close-btn" id="tagCloudCloseBtn">×</button>
+        <h2 class="tag-cloud-title">Tag Cloud</h2>
+        <div class="tag-cloud-content" id="tagCloudContent">
+          <!-- Tag cloud items rendered here -->
+        </div>
+        <div class="tag-cloud-footer">
+          <span class="tag-cloud-info">Click any tag to filter videos</span>
+        </div>
+      </div>
+    </div>
+
     <div class="context-menu" id="contextMenu">
       <ul>
         <li class="context-menu-item" data-action="open-location">
@@ -207,6 +227,7 @@
     <script src="modules/VideoExpander.js"></script>
     <script src="modules/FilterManager.js"></script>
     <script src="modules/TagManager.js"></script>
+    <script src="modules/TagCloudManager.js"></script>
     <script src="modules/GridRenderer.js"></script>
     <script src="modules/UserDataManager.js"></script>
     <script src="modules/UIHelper.js"></script>

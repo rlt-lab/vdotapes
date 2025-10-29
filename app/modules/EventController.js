@@ -47,6 +47,14 @@ class EventController {
       this.app.filterManager.toggleHiddenView();
     });
 
+    // Tag cloud button
+    const tagCloudBtn = document.getElementById('tagCloudBtn');
+    if (tagCloudBtn) {
+      tagCloudBtn.addEventListener('click', () => {
+        this.app.tagCloudManager.openTagCloud();
+      });
+    }
+
     // Dropdown menus
     this.setupDropdowns();
 
@@ -238,6 +246,13 @@ class EventController {
   setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        // Check if tag cloud is open and close it first
+        const tagCloudOverlay = document.getElementById('tagCloudOverlay');
+        if (tagCloudOverlay && tagCloudOverlay.classList.contains('visible')) {
+          this.app.tagCloudManager.closeTagCloud();
+          return;
+        }
+
         this.app.videoExpander.closeExpanded();
         this.app.uiHelper.closeMultiView();
       } else if (e.key === ' ') {
