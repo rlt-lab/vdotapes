@@ -79,6 +79,20 @@ class EventController {
       }
     });
 
+    // Event delegation for tag remove buttons
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.tag-remove')) {
+        const button = e.target.closest('.tag-remove');
+        const tagName = button.dataset.tagName;
+        const tagList = button.closest('#tagList');
+        const videoId = tagList?.dataset.videoId;
+
+        if (videoId && tagName) {
+          this.app.videoExpander.removeTag(videoId, tagName);
+        }
+      }
+    });
+
     // Context menu
     this.setupContextMenu();
   }

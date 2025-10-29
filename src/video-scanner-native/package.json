@@ -23,5 +23,11 @@
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.3.1"
+  },
+  "optionalDependencies": {
+    "video-scanner-native-darwin-x64": "0.1.0",
+    "video-scanner-native-darwin-arm64": "0.1.0",
+    "video-scanner-native-win32-x64-msvc": "0.1.0",
+    "video-scanner-native-linux-x64-gnu": "0.1.0"
   }
 }

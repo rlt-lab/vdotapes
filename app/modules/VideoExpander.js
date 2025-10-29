@@ -119,16 +119,26 @@ class VideoExpander {
       return;
     }
 
+    // Store videoId as data attribute on the container for event delegation
+    tagList.dataset.videoId = videoId;
+
+    // Use data attributes instead of inline onclick to comply with CSP
     tagList.innerHTML = tags
       .map(
         (tag) => `
-        <span class="tag-item" data-tag="${tag}">
-          ${tag}
-          <button class="tag-remove" onclick="window.app.videoExpander.removeTag('${videoId}', '${tag}')">×</button>
+        <span class="tag-item" data-tag="${this.escapeHtml(tag)}">
+          ${this.escapeHtml(tag)}
+          <button class="tag-remove" data-tag-name="${this.escapeHtml(tag)}">×</button>
         </span>
       `
       )
       .join('');
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   async removeTag(videoId, tagName) {
