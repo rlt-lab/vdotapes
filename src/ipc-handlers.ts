@@ -28,6 +28,7 @@ interface UserPreferences {
   };
   readonly folderFilter?: string;
   readonly favoritesOnly?: boolean;
+  readonly hiddenOnly?: boolean;
   readonly windowState?: {
     readonly width: number;
     readonly height: number;
@@ -331,6 +332,7 @@ class IPCHandlers {
         await this.initialize();
       }
 
+      console.log('[IPC] handleGetVideos - received filters:', JSON.stringify(filters));
       return this.database.getVideos(filters);
     } catch (error) {
       console.error('Error getting videos:', error);
@@ -874,6 +876,7 @@ class IPCHandlers {
         sortPreference: this.database.getSortPreference(),
         folderFilter: this.database.getFolderFilter(),
         favoritesOnly: this.database.getFavoritesOnly(),
+        hiddenOnly: this.database.getHiddenOnly(),
         windowState: this.database.getWindowState(),
       };
     } catch (error) {
@@ -884,6 +887,7 @@ class IPCHandlers {
         sortPreference: { sortBy: 'folder', sortOrder: 'ASC' },
         folderFilter: '',
         favoritesOnly: false,
+        hiddenOnly: false,
         windowState: { width: 1400, height: 900, x: null, y: null },
       };
     }
@@ -898,7 +902,7 @@ class IPCHandlers {
         await this.initialize();
       }
 
-      const { lastFolder, gridColumns, sortPreference, folderFilter, favoritesOnly, windowState } =
+      const { lastFolder, gridColumns, sortPreference, folderFilter, favoritesOnly, hiddenOnly, windowState } =
         preferences;
 
       if (lastFolder !== undefined) {
@@ -915,6 +919,9 @@ class IPCHandlers {
       }
       if (favoritesOnly !== undefined) {
         this.database.saveFavoritesOnly(favoritesOnly);
+      }
+      if (hiddenOnly !== undefined) {
+        this.database.saveHiddenOnly(hiddenOnly);
       }
       if (windowState !== undefined) {
         this.database.saveWindowState(

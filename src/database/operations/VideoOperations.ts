@@ -408,8 +408,11 @@ export class VideoOperations {
     }
 
     // Check cache first
-    const cacheKey = 'getVideos';
+    console.log('[VideoOperations] getVideos called with filters:', JSON.stringify(filters));
+    // Include filters in cache key to ensure each filter combination gets its own cache entry
+    const cacheKey = `getVideos:${JSON.stringify(filters)}`;
     const cached = this.cache.get(cacheKey, filters);
+    console.log('[VideoOperations] Cache result:', cached ? `HIT (${(cached as VideoRecord[]).length} videos)` : 'MISS');
     if (cached) {
       return cached as VideoRecord[];
     }
@@ -454,15 +457,17 @@ export class VideoOperations {
         params.push(filters.folder);
       }
 
+      console.log('[VideoOperations] Building query, favoritesOnly =', filters.favoritesOnly, ', typeof:', typeof filters.favoritesOnly);
       if (filters.favoritesOnly) {
-        query += ' AND favorite = 1';
+        console.log('[VideoOperations] ADDING FAVORITES FILTER TO SQL QUERY');
+        query += ' AND COALESCE(favorite, 0) = 1';
       }
       
       if (filters.hiddenOnly) {
         query += ' AND hidden = 1';
       } else {
-        // By default, don't show hidden videos
-        query += ' AND hidden = 0';
+        // By default, don't show hidden videos (treat NULL as not hidden)
+        query += ' AND COALESCE(hidden, 0) = 0';
       }
 
       if (filters.ratingMin) {
@@ -537,6 +542,9 @@ export class VideoOperations {
         view_count?: number;
         [key: string]: unknown;
       }>;
+
+      console.log('[VideoOperations] Query returned', videos.length, 'videos');
+      console.log('[VideoOperations] First 3 videos:', videos.slice(0, 3).map(v => ({ id: v.id, name: v.name, favorite: v.favorite })));
 
       return videos.map((video) => ({
         ...video,

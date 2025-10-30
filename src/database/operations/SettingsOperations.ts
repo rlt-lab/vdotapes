@@ -207,6 +207,20 @@ export class SettingsOperations {
   }
 
   /**
+   * Save hidden-only preference
+   */
+  saveHiddenOnly(hiddenOnly: boolean): boolean {
+    return this.saveSetting('hiddenOnly', hiddenOnly);
+  }
+
+  /**
+   * Get hidden-only preference
+   */
+  getHiddenOnly(): boolean {
+    return this.getSetting('hiddenOnly', false);
+  }
+
+  /**
    * Save window size and position
    */
   saveWindowState(width: number, height: number, x: number, y: number): boolean {

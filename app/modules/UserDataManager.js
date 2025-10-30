@@ -152,20 +152,38 @@ class UserDataManager {
       console.log('[UserDataManager] Loading settings...');
 
       const preferences = await window.electronAPI.getUserPreferences();
+      console.log('[UserDataManager] Loaded preferences from database:', preferences);
+
       if (preferences) {
         this.app.gridCols = preferences.gridColumns || this.app.gridCols;
         this.app.currentSort = preferences.sortPreference?.sortBy || 'folder';
-        // Don't restore favorites-only or hidden-only state - always show all videos on startup
+
+        // Don't restore favorites-only, hidden-only, or folder filter state - always show all videos on startup
+        console.log('[UserDataManager] BEFORE RESET - showingFavoritesOnly:', this.app.showingFavoritesOnly, 'showingHiddenOnly:', this.app.showingHiddenOnly, 'currentFolder:', this.app.currentFolder);
+
         this.app.showingFavoritesOnly = false;
         this.app.showingHiddenOnly = false;
-        this.app.currentFolder = preferences.folderFilter || '';
+        this.app.currentFolder = '';  // Reset to show ALL folders
+
+        console.log('[UserDataManager] AFTER RESET - showingFavoritesOnly:', this.app.showingFavoritesOnly, 'showingHiddenOnly:', this.app.showingHiddenOnly, 'currentFolder:', this.app.currentFolder);
+
+        // Immediately save reset filter state to database to ensure consistency
+        console.log('[UserDataManager] Saving reset filter state to database...');
+        await window.electronAPI.saveUserPreferences({
+          gridColumns: this.app.gridCols,
+          sortPreference: { sortBy: this.app.currentSort },
+          folderFilter: '',  // Reset to show all folders
+          favoritesOnly: false,  // Reset to show all videos
+          hiddenOnly: false,  // Reset to show non-hidden videos
+        });
+        console.log('[UserDataManager] Reset and saved filter states to database');
 
         const gridInput = document.getElementById('gridCols');
         if (gridInput) gridInput.value = this.app.gridCols;
         const gridCount = document.getElementById('gridColsCount');
         if (gridCount) gridCount.textContent = String(this.app.gridCols);
         const folderSel = document.getElementById('folderSelect');
-        if (folderSel) folderSel.value = this.app.currentFolder;
+        if (folderSel) folderSel.value = '';  // Set to "All Folders"
         this.app.filterManager.updateSortButtonStates();
 
         // Ensure buttons reflect the reset state (not active on startup)

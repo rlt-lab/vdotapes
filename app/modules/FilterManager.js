@@ -120,6 +120,13 @@ class FilterManager {
   }
 
   applyCurrentFilters() {
+    console.log('[FilterManager] applyCurrentFilters called with state:', {
+      currentFolder: this.app.currentFolder,
+      showingFavoritesOnly: this.app.showingFavoritesOnly,
+      showingHiddenOnly: this.app.showingHiddenOnly,
+      totalVideos: this.app.allVideos.length
+    });
+
     if (this.app.useWasmEngine && this.app.gridEngine) {
       try {
         const currentFilterState = JSON.stringify({
@@ -235,6 +242,15 @@ class FilterManager {
     }
 
     this.app.displayedVideos = filtered;
+    console.log('[FilterManager] Filtered result:', {
+      displayedVideos: filtered.length,
+      allVideos: this.app.allVideos.length,
+      favoriteCount: this.app.favorites.size,
+      showingFavoritesOnly: this.app.showingFavoritesOnly,
+      currentFolder: this.app.currentFolder
+    });
+    console.log('[FilterManager] First 5 displayed videos:', filtered.slice(0, 5).map(v => ({ id: v.id, name: v.name, isFavorite: v.isFavorite })));
+    console.log('[FilterManager] First 5 ALL videos:', this.app.allVideos.slice(0, 5).map(v => ({ id: v.id, name: v.name, isFavorite: v.isFavorite })));
     this.app.renderGrid();
   }
 

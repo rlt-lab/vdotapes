@@ -381,6 +381,14 @@ export class VideoDatabase implements VideoDatabaseOperations {
     return this.settingsOps.getFavoritesOnly();
   }
 
+  saveHiddenOnly(hiddenOnly: boolean): boolean {
+    return this.settingsOps.saveHiddenOnly(hiddenOnly);
+  }
+
+  getHiddenOnly(): boolean {
+    return this.settingsOps.getHiddenOnly();
+  }
+
   saveWindowState(width: number, height: number, x: number, y: number): boolean {
     return this.settingsOps.saveWindowState(width, height, x, y);
   }

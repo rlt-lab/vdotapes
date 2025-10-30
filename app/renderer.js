@@ -4,6 +4,7 @@
  */
 class VdoTapesApp {
   constructor() {
+    console.log('[App] VdoTapesApp constructor starting...');
     // Constants
     this.MAIN_PROCESS_READY_DELAY = 500;
     this.SETTINGS_LOAD_DELAY = 1000;
@@ -20,6 +21,8 @@ class VdoTapesApp {
     this.showingFavoritesOnly = false;
     this.hiddenFiles = new Set();
     this.showingHiddenOnly = false;
+
+    console.log('[App] Initial state - showingFavoritesOnly:', this.showingFavoritesOnly, 'showingHiddenOnly:', this.showingHiddenOnly, 'currentFolder:', this.currentFolder);
     this.multiViewQueue = [];
     this.previousViewState = { folder: '', sort: 'shuffle' };
     this.currentExpandedIndex = -1;
@@ -128,8 +131,11 @@ class VdoTapesApp {
       if (result.success) {
         try {
           const dbVideos = await window.electronAPI.getVideos({ sortBy: 'none' });
+          console.log('[App] getVideos returned', dbVideos.length, 'videos from database');
+          console.log('[App] Scan result has', result.videos.length, 'videos');
           if (dbVideos && dbVideos.length > 0) {
             this.allVideos = dbVideos;
+            console.log('[App] Using database videos, allVideos.length =', this.allVideos.length);
             const folderSet = new Set();
             dbVideos.forEach(video => {
               if (video.folder) folderSet.add(video.folder);
@@ -194,6 +200,7 @@ class VdoTapesApp {
           this.populateFolderDropdown();
         }
 
+        console.log('[App] About to apply filters - showingFavoritesOnly:', this.showingFavoritesOnly, 'showingHiddenOnly:', this.showingHiddenOnly, 'currentFolder:', this.currentFolder, 'activeTags:', this.activeTags);
         this.applyCurrentFilters();
         this.uiHelper.hideProgress();
         this.uiHelper.showFilterControls();
