@@ -9,6 +9,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
+    "incremental": true,
+    "tsBuildInfoFile": "../.tsbuildinfo/renderer.tsbuildinfo",
     "baseUrl": "..",
     "paths": {
       "@types/*": ["types/*"]

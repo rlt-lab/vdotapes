@@ -9,6 +9,10 @@ dist/
 build/
 out/
 
+# TypeScript incremental build cache
+.tsbuildinfo/
+*.tsbuildinfo
+
 # Rust build artifacts (native modules)
 **/target/
 

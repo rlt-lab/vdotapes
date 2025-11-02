@@ -66,6 +66,7 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
     "@napi-rs/cli": "^3.3.1",
+    "@playwright/test": "^1.55.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.8.1",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
@@ -79,7 +80,6 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@playwright/test": "^1.55.0",
     "better-sqlite3": "^12.2.0"
   }
 }

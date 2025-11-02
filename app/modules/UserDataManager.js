@@ -4,6 +4,14 @@
 class UserDataManager {
   constructor(app) {
     this.app = app;
+
+    // Create debounced save function (wait 1 second after last change)
+    this.debouncedSave = debounce(() => {
+      this.saveSettingsImmediate();
+    }, 1000);  // 1 second delay
+
+    // Track if there are pending saves
+    this.hasPendingChanges = false;
   }
 
   async toggleFavorite(videoId, event) {
@@ -229,7 +237,20 @@ class UserDataManager {
     }
   }
 
-  async saveSettings() {
+  /**
+   * Debounced save - waits for user to stop making changes
+   * Call this from UI event handlers
+   */
+  saveSettings() {
+    this.hasPendingChanges = true;
+    this.debouncedSave();
+  }
+
+  /**
+   * Immediate save - bypasses debouncing
+   * Use for critical saves (app exit, folder switch)
+   */
+  async saveSettingsImmediate() {
     try {
       await window.electronAPI.saveUserPreferences({
         gridColumns: this.app.gridCols,
@@ -238,8 +259,32 @@ class UserDataManager {
         favoritesOnly: this.app.showingFavoritesOnly,
         hiddenOnly: this.app.showingHiddenOnly,
       });
+      this.hasPendingChanges = false;
+      console.log('[Settings] Saved:', {
+        gridColumns: this.app.gridCols,
+        sortBy: this.app.currentSort,
+        folderFilter: this.app.currentFolder,
+        favoritesOnly: this.app.showingFavoritesOnly,
+        hiddenOnly: this.app.showingHiddenOnly,
+      });
     } catch (error) {
       console.error('Error saving settings:', error);
+    }
+  }
+
+  /**
+   * Flush any pending saves immediately
+   * Call before critical operations (folder switch, app exit)
+   */
+  async flushPendingSaves() {
+    if (this.hasPendingChanges) {
+      console.log('[Settings] Flushing pending saves...');
+      // Cancel debounce timer
+      if (this.debouncedSave.cancel) {
+        this.debouncedSave.cancel();
+      }
+      // Save immediately
+      await this.saveSettingsImmediate();
     }
   }
 }

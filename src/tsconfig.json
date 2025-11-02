@@ -12,6 +12,7 @@
     "resolveJsonModule": true,
     "declaration": true,
     "incremental": true,
+    "tsBuildInfoFile": "../.tsbuildinfo/main.tsbuildinfo",
     "baseUrl": "..",
     "paths": {
       "@types/*": ["types/*"]

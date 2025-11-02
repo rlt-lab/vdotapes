@@ -79,8 +79,9 @@ class VdoTapesApp {
 
     await this.userDataManager.loadSettings();
 
-    window.addEventListener('beforeunload', () => {
-      this.userDataManager.saveSettings();
+    window.addEventListener('beforeunload', async () => {
+      await this.userDataManager.flushPendingSaves();
+      await this.userDataManager.saveSettingsImmediate();
     });
   }
 
@@ -116,6 +117,9 @@ class VdoTapesApp {
 
   async scanVideos(folderPath) {
     try {
+      // Flush pending saves before switching folders
+      await this.userDataManager.flushPendingSaves();
+
       this.uiHelper.showProgress(0, 'Initializing scan...');
 
       const progressHandler = (progress) => {
