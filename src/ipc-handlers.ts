@@ -157,6 +157,7 @@ class IPCHandlers {
     ipcMain.handle('tags-list', this.handleTagsList.bind(this));
     ipcMain.handle('tags-all', this.handleTagsAll.bind(this));
     ipcMain.handle('tags-search', this.handleTagsSearch.bind(this));
+    ipcMain.handle('get-all-video-tags', this.handleGetAllVideoTags.bind(this));
 
     // Backup/Restore handlers
     ipcMain.handle('backup-export', this.handleBackupExport.bind(this));
@@ -633,6 +634,27 @@ class IPCHandlers {
     } catch (error) {
       console.error('Error searching tags:', error);
       return [];
+    }
+  }
+
+  async handleGetAllVideoTags(_event: IpcMainInvokeEvent): Promise<Record<string, string[]>> {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      const tagsMap = this.database.getAllVideoTags();
+
+      // Convert Map to plain object for IPC transfer
+      const result: Record<string, string[]> = {};
+      for (const [videoId, tags] of tagsMap.entries()) {
+        result[videoId] = tags;
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in get-all-video-tags handler:', error);
+      return {};
     }
   }
 

@@ -307,6 +307,13 @@ export class VideoDatabase implements VideoDatabaseOperations {
     return this.tagOps.searchByTag(tagName);
   }
 
+  /**
+   * Get all video tags in batch
+   */
+  getAllVideoTags(): Map<VideoId, string[]> {
+    return this.tagOps.getAllVideoTags();
+  }
+
   // Legacy tag methods for backward compatibility
   addTagToVideo(videoId: VideoId, tagName: string): boolean {
     return this.tagOps.addTagToVideo(videoId, tagName);

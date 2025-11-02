@@ -100,6 +100,7 @@ export interface ElectronAPI {
   readonly listTags: (videoId: VideoId) => Promise<readonly string[]>;
   readonly listAllTags: () => Promise<readonly string[]>;
   readonly searchByTag: (query: string) => Promise<readonly VideoRecord[]>;
+  readonly getAllVideoTags: () => Promise<Record<string, string[]>>;
 
   // Thumbnail operations
   readonly generateThumbnail: (videoPath: FilePath, timestamp: number) => Promise<Buffer | null>;

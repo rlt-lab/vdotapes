@@ -67,6 +67,7 @@ const electronAPI: ElectronAPI = {
   listTags: (videoId) => ipcRenderer.invoke('tags-list', videoId),
   listAllTags: () => ipcRenderer.invoke('tags-all'),
   searchByTag: (query) => ipcRenderer.invoke('tags-search', query),
+  getAllVideoTags: () => ipcRenderer.invoke('get-all-video-tags'),
 
   // Backup
   exportBackup: () => ipcRenderer.invoke('backup-export'),

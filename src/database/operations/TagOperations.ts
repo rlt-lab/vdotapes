@@ -71,6 +71,46 @@ export class TagOperations {
   }
 
   /**
+   * Get all video tags in a single query (batch operation)
+   * Returns a map of videoId -> tag names
+   */
+  getAllVideoTags(): Map<VideoId, string[]> {
+    if (!this.core.isInitialized()) {
+      return new Map();
+    }
+
+    const monitoredQuery = this.monitor.wrapQuery('getAllVideoTags', () => {
+      try {
+        const db = this.core.getConnection();
+        const stmt = db.prepare(`
+          SELECT vt.video_id, t.name
+          FROM video_tags vt
+          INNER JOIN tags t ON vt.tag_id = t.id
+          ORDER BY vt.video_id, t.name
+        `);
+
+        const rows = stmt.all() as Array<{ video_id: string; name: string }>;
+        const result = new Map<VideoId, string[]>();
+
+        for (const row of rows) {
+          const videoId = row.video_id as VideoId;
+          if (!result.has(videoId)) {
+            result.set(videoId, []);
+          }
+          result.get(videoId)!.push(row.name);
+        }
+
+        return result;
+      } catch (error) {
+        console.error('Error getting all video tags:', error);
+        return new Map();
+      }
+    });
+
+    return monitoredQuery();
+  }
+
+  /**
    * Add tag to video (implementation)
    */
   addTagToVideo(videoId: VideoId, tagName: string): boolean {

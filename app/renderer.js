@@ -172,22 +172,20 @@ class VdoTapesApp {
             console.log(`[App] Applied ${hiddenFiles.length} hidden files to videos`);
           }
 
-          // Load tags for all videos
+          // Load tags for all videos (BATCH OPERATION - single query)
           console.log('[App] Loading tags for all videos...');
-          this.videoTags = {};
-          let totalTags = 0;
-          for (const video of this.allVideos) {
-            try {
-              const tags = await window.electronAPI.listTags(video.id);
-              if (tags && tags.length > 0) {
-                this.videoTags[video.id] = tags;
-                totalTags += tags.length;
-              }
-            } catch (error) {
-              console.error(`Error loading tags for ${video.id}:`, error);
-            }
+          try {
+            const allVideoTags = await window.electronAPI.getAllVideoTags();
+            this.videoTags = allVideoTags;
+
+            const totalVideosWithTags = Object.keys(allVideoTags).length;
+            const totalTags = Object.values(allVideoTags).reduce((sum, tags) => sum + tags.length, 0);
+
+            console.log(`[App] Loaded tags for ${totalVideosWithTags} videos (${totalTags} total tags) in single query`);
+          } catch (error) {
+            console.error('Error loading all video tags:', error);
+            this.videoTags = {};
           }
-          console.log(`[App] Loaded tags for ${Object.keys(this.videoTags).length} videos (${totalTags} total tags)`);
 
           // Load all unique tags for autocomplete
           if (this.tagManager) {
