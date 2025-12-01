@@ -53,7 +53,26 @@ class VideoExpander {
     const hiddenBtn = document.getElementById('sidebarHiddenBtn');
 
     // Update metadata fields
-    if (metaFolder) metaFolder.textContent = video.folder || '(Root)';
+    if (metaFolder) {
+      metaFolder.textContent = video.folder || '(Root)';
+      // Make folder name clickable to filter by that subfolder
+      metaFolder.classList.add('clickable-folder');
+      metaFolder.style.cursor = 'pointer';
+      metaFolder.onclick = () => {
+        const folderName = video.folder || '';
+        // Update folder dropdown
+        const folderSelect = document.getElementById('folderSelect');
+        if (folderSelect) {
+          folderSelect.value = folderName;
+        }
+        // Close expanded view
+        this.closeExpanded();
+        // Apply folder filter
+        if (this.app.filterManager) {
+          this.app.filterManager.filterByFolder(folderName);
+        }
+      };
+    }
     if (metaLength) metaLength.textContent = video.duration ? this.app.formatDuration(video.duration) : 'Unknown';
     if (metaFilename) metaFilename.textContent = video.name || 'Unknown';
 

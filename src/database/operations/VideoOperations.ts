@@ -481,6 +481,17 @@ export class VideoOperations {
         params.push(searchTerm, searchTerm);
       }
 
+      // Tag filtering - filter by videos that have ANY of the specified tags
+      if (filters.tags && filters.tags.length > 0) {
+        query += ` AND id IN (
+          SELECT vt.video_id
+          FROM video_tags vt
+          INNER JOIN tags t ON vt.tag_id = t.id
+          WHERE t.name IN (${filters.tags.map(() => '?').join(',')})
+        )`;
+        params.push(...filters.tags);
+      }
+
       // Apply sorting (using new columns directly)
       const sortField = filters.sortBy || 'folder';
 

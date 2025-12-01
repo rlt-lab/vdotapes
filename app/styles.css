@@ -1353,6 +1353,16 @@ body {
   white-space: nowrap;
 }
 
+.meta-val.clickable-folder {
+  cursor: pointer;
+  transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+.meta-val.clickable-folder:hover {
+  color: #4a9eff;
+  text-decoration: underline;
+}
+
 .close-btn {
   position: absolute;
   top: 2rem;
