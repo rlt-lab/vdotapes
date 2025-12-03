@@ -9,6 +9,7 @@ class FilterManager {
   filterByFolder(folderName) {
     this.app.currentFolder = folderName;
     this.applyCurrentFilters();
+    this.app.userDataManager.updateHiddenCount();
     this.app.updateStatusMessage();
     this.app.saveSettings();
   }

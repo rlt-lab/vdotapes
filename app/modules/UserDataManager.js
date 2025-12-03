@@ -78,9 +78,9 @@ class UserDataManager {
       const isCurrentlyHidden = this.app.hiddenFiles.has(videoId);
       const newHiddenState = !isCurrentlyHidden;
 
-      const result = await window.electronAPI.setHiddenStatus(videoId, newHiddenState);
+      const success = await window.electronAPI.saveHiddenFile(videoId, newHiddenState);
 
-      if (result.success) {
+      if (success) {
         if (newHiddenState) {
           this.app.hiddenFiles.add(videoId);
         } else {
@@ -125,7 +125,16 @@ class UserDataManager {
   }
 
   updateHiddenCount() {
-    const count = this.app.hiddenFiles.size;
+    let count;
+    if (this.app.currentFolder) {
+      // Count only hidden files in current folder
+      count = this.app.allVideos.filter(v =>
+        v.folder === this.app.currentFolder &&
+        this.app.hiddenFiles.has(v.id)
+      ).length;
+    } else {
+      count = this.app.hiddenFiles.size;
+    }
     const countElement = document.getElementById('hiddenCount');
     if (countElement) {
       countElement.textContent = count;
