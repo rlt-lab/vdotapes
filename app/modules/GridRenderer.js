@@ -19,6 +19,8 @@ class GridRenderer {
     } else {
       this.renderSmartGrid();
     }
+
+    this.app.gridRendered = true;
   }
 
   renderVirtualGrid() {

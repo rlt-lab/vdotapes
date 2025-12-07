@@ -11,6 +11,7 @@ class VdoTapesApp {
 
     // Core state
     this.allVideos = [];
+    this.videoMap = new Map(); // O(1) video lookup by ID
     this.displayedVideos = [];
     this.folders = [];
     this.currentFolder = '';
@@ -26,10 +27,12 @@ class VdoTapesApp {
     this.multiViewQueue = [];
     this.previousViewState = { folder: '', sort: 'shuffle' };
     this.currentExpandedIndex = -1;
+    this.gridRendered = false; // Track if grid has been rendered (for in-place filtering)
     
     // Tags
     this.activeTags = [];  // Array of active tag names for filtering
     this.videoTags = {};   // Map: videoId -> [tag names]
+    this.videoTagSets = {}; // Map: videoId -> Set of tag names (O(1) lookup)
     this.tagFilterMode = 'OR';  // 'AND' or 'OR' - how to combine multiple tags
 
     // Smart loading (single video loading system)
@@ -139,6 +142,7 @@ class VdoTapesApp {
           console.log('[App] Scan result has', result.videos.length, 'videos');
           if (dbVideos && dbVideos.length > 0) {
             this.allVideos = dbVideos;
+            this.updateVideoMap();
             console.log('[App] Using database videos, allVideos.length =', this.allVideos.length);
             const folderSet = new Set();
             dbVideos.forEach(video => {
@@ -147,6 +151,7 @@ class VdoTapesApp {
             this.folders = Array.from(folderSet).sort();
           } else {
             this.allVideos = result.videos;
+            this.updateVideoMap();
             this.folders = result.folders;
           }
 
@@ -182,6 +187,12 @@ class VdoTapesApp {
             const allVideoTags = await window.electronAPI.getAllVideoTags();
             this.videoTags = allVideoTags;
 
+            // Build Sets for O(1) tag membership checks
+            this.videoTagSets = {};
+            for (const [videoId, tags] of Object.entries(allVideoTags)) {
+              this.videoTagSets[videoId] = new Set(tags);
+            }
+
             const totalVideosWithTags = Object.keys(allVideoTags).length;
             const totalTags = Object.values(allVideoTags).reduce((sum, tags) => sum + tags.length, 0);
 
@@ -189,6 +200,7 @@ class VdoTapesApp {
           } catch (error) {
             console.error('Error loading all video tags:', error);
             this.videoTags = {};
+            this.videoTagSets = {};
           }
 
           // Load all unique tags for autocomplete
@@ -198,6 +210,7 @@ class VdoTapesApp {
         } catch (error) {
           console.error('Error loading videos from database:', error);
           this.allVideos = result.videos;
+          this.updateVideoMap();
           this.folders = result.folders;
           this.populateFolderDropdown();
         }
@@ -273,6 +286,10 @@ class VdoTapesApp {
 
   formatDuration(seconds) {
     return this.uiHelper.formatDuration(seconds);
+  }
+
+  updateVideoMap() {
+    this.videoMap = new Map(this.allVideos.map(v => [v.id, v]));
   }
 
   updateStatusMessage() {

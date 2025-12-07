@@ -1,9 +1,23 @@
 /**
+ * Debounce utility - delays function execution until after wait ms have elapsed
+ * since the last time it was invoked.
+ */
+function debounce(fn, delay) {
+  let timer = null;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+/**
  * FilterManager - Handles filtering and sorting of videos
  */
 class FilterManager {
   constructor(app) {
     this.app = app;
+    // Debounced version for rapid filter changes (tag clicks, etc)
+    this.debouncedApplyFilters = debounce(() => this.applyFiltersOptimized(), 50);
   }
 
   filterByFolder(folderName) {
@@ -72,17 +86,30 @@ class FilterManager {
     this.app.currentSort = 'shuffle';
     this.updateSortButtonStates();
 
-    let videosToShuffle = [...this.app.displayedVideos];
-
-    for (let i = videosToShuffle.length - 1; i > 0; i--) {
+    // Shuffle displayedVideos array (Fisher-Yates)
+    const videos = this.app.displayedVideos;
+    for (let i = videos.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [videosToShuffle[i], videosToShuffle[j]] = [videosToShuffle[j], videosToShuffle[i]];
+      [videos[i], videos[j]] = [videos[j], videos[i]];
     }
 
-    this.app.displayedVideos = videosToShuffle;
-    this.app.renderGrid();
-    this.app.updateStatusMessage();
+    // Reorder DOM to match shuffled order (preserves thumbnails)
+    const container = document.querySelector('.video-grid');
+    if (container && this.app.gridRendered) {
+      const frag = document.createDocumentFragment();
+      videos.forEach((video, newIndex) => {
+        const item = container.querySelector(`[data-video-id="${video.id}"]`);
+        if (item) {
+          item.dataset.index = newIndex.toString();
+          frag.appendChild(item);
+        }
+      });
+      container.appendChild(frag);
+    } else {
+      this.app.renderGrid();
+    }
 
+    this.app.updateStatusMessage();
     setTimeout(() => btn.classList.remove('shuffling'), 500);
   }
 
@@ -105,7 +132,7 @@ class FilterManager {
     const btn = document.getElementById('favoritesBtn');
     btn.classList.toggle('active', this.app.showingFavoritesOnly);
 
-    this.applyCurrentFilters();
+    this.applyFiltersOptimized();
     this.app.updateStatusMessage();
     this.app.saveSettings();
   }
@@ -115,9 +142,22 @@ class FilterManager {
     const btn = document.getElementById('hiddenBtn');
     btn.classList.toggle('active', this.app.showingHiddenOnly);
 
-    this.applyCurrentFilters();
+    this.applyFiltersOptimized();
     this.app.updateStatusMessage();
     this.app.saveSettings();
+  }
+
+  /**
+   * Apply filters using in-place DOM updates when possible, falling back to full render otherwise.
+   * This preserves thumbnails and video state during filter toggles.
+   */
+  applyFiltersOptimized() {
+    if (this.app.gridRendered && document.querySelector('.video-grid')) {
+      this.applyFiltersInPlace();
+      this.reorderGridInPlace();
+    } else {
+      this.applyCurrentFilters();
+    }
   }
 
   applyCurrentFilters() {
@@ -152,16 +192,15 @@ class FilterManager {
 
         let filteredVideos = this.app.gridEngine.getFilteredVideos();
 
-        // Apply tag filtering in JS (WASM doesn't support tags yet)
+        // Apply tag filtering in JS (WASM doesn't support tags yet) - using Sets for O(1) lookup
         if (this.app.activeTags && this.app.activeTags.length > 0) {
           filteredVideos = filteredVideos.filter(video => {
-            const videoTags = this.app.videoTags[video.id] || [];
+            const videoTagSet = this.app.videoTagSets[video.id];
+            if (!videoTagSet || videoTagSet.size === 0) return false;
             if (this.app.tagFilterMode === 'AND') {
-              // AND logic: video must have ALL selected tags
-              return this.app.activeTags.every(tag => videoTags.includes(tag));
+              return this.app.activeTags.every(tag => videoTagSet.has(tag));
             } else {
-              // OR logic: video must have at least ONE selected tag
-              return this.app.activeTags.some(tag => videoTags.includes(tag));
+              return this.app.activeTags.some(tag => videoTagSet.has(tag));
             }
           });
           const mode = this.app.tagFilterMode === 'AND' ? 'all' : 'any';
@@ -185,35 +224,45 @@ class FilterManager {
       }
     }
 
-    let filtered = [...this.app.allVideos];
+    // Single-pass filtering for performance
+    const hasFolderFilter = !!this.app.currentFolder;
+    const hasTagFilter = this.app.activeTags && this.app.activeTags.length > 0;
+    const tagModeAnd = this.app.tagFilterMode === 'AND';
 
-    if (this.app.currentFolder) {
-      filtered = filtered.filter((video) => video.folder === this.app.currentFolder);
-    }
+    const filtered = this.app.allVideos.filter(video => {
+      // Folder filter
+      if (hasFolderFilter && video.folder !== this.app.currentFolder) {
+        return false;
+      }
 
-    if (this.app.showingFavoritesOnly) {
-      filtered = filtered.filter((video) => video.isFavorite === true);
-    }
+      // Favorites filter
+      if (this.app.showingFavoritesOnly && !video.isFavorite) {
+        return false;
+      }
 
-    if (this.app.showingHiddenOnly) {
-      filtered = filtered.filter((video) => this.app.hiddenFiles.has(video.id));
-    } else {
-      filtered = filtered.filter((video) => !this.app.hiddenFiles.has(video.id));
-    }
+      // Hidden filter
+      if (this.app.showingHiddenOnly) {
+        if (!this.app.hiddenFiles.has(video.id)) return false;
+      } else {
+        if (this.app.hiddenFiles.has(video.id)) return false;
+      }
 
-    // Apply tag filtering
-    if (this.app.activeTags && this.app.activeTags.length > 0) {
-      filtered = filtered.filter(video => {
-        const videoTags = this.app.videoTags[video.id] || [];
-        if (this.app.tagFilterMode === 'AND') {
-          // AND logic: video must have ALL selected tags
-          return this.app.activeTags.every(tag => videoTags.includes(tag));
+      // Tag filter (using Sets for O(1) lookup)
+      if (hasTagFilter) {
+        const videoTagSet = this.app.videoTagSets[video.id];
+        if (!videoTagSet || videoTagSet.size === 0) return false; // No tags = no match
+        if (tagModeAnd) {
+          if (!this.app.activeTags.every(tag => videoTagSet.has(tag))) return false;
         } else {
-          // OR logic: video must have at least ONE selected tag
-          return this.app.activeTags.some(tag => videoTags.includes(tag));
+          if (!this.app.activeTags.some(tag => videoTagSet.has(tag))) return false;
         }
-      });
-      const mode = this.app.tagFilterMode === 'AND' ? 'all' : 'any';
+      }
+
+      return true;
+    });
+
+    if (hasTagFilter) {
+      const mode = tagModeAnd ? 'all' : 'any';
       console.log(`[Filter] Tag filter (${this.app.tagFilterMode}) applied: ${filtered.length} videos match ${mode} tags [${this.app.activeTags.join(', ')}]`);
     }
 
@@ -264,9 +313,12 @@ class FilterManager {
 
     const items = Array.from(container.querySelectorAll('.video-item'));
 
+    const hasTagFilter = this.app.activeTags && this.app.activeTags.length > 0;
+    const tagModeAnd = this.app.tagFilterMode === 'AND';
+
     items.forEach((item) => {
       const videoId = item.dataset.videoId;
-      const video = this.app.allVideos.find((v) => v.id === videoId);
+      const video = this.app.videoMap.get(videoId);
       if (!video) {
         item.classList.add('is-hidden-by-filter');
         return;
@@ -278,14 +330,28 @@ class FilterManager {
         shouldShow = false;
       }
 
-      if (this.app.showingFavoritesOnly && !this.app.favorites.has(video.id)) {
+      if (shouldShow && this.app.showingFavoritesOnly && !video.isFavorite) {
         shouldShow = false;
       }
 
-      if (this.app.showingHiddenOnly) {
-        shouldShow = this.app.hiddenFiles.has(video.id);
-      } else if (this.app.hiddenFiles.has(video.id)) {
-        shouldShow = false;
+      if (shouldShow) {
+        if (this.app.showingHiddenOnly) {
+          shouldShow = this.app.hiddenFiles.has(video.id);
+        } else if (this.app.hiddenFiles.has(video.id)) {
+          shouldShow = false;
+        }
+      }
+
+      // Tag filter (using Sets for O(1) lookup)
+      if (shouldShow && hasTagFilter) {
+        const videoTagSet = this.app.videoTagSets[video.id];
+        if (!videoTagSet || videoTagSet.size === 0) {
+          shouldShow = false;
+        } else if (tagModeAnd) {
+          shouldShow = this.app.activeTags.every(tag => videoTagSet.has(tag));
+        } else {
+          shouldShow = this.app.activeTags.some(tag => videoTagSet.has(tag));
+        }
       }
 
       item.classList.toggle('is-hidden-by-filter', !shouldShow);
@@ -303,7 +369,7 @@ class FilterManager {
     this.app.displayedVideos = items
       .map((item) => {
         const videoId = item.dataset.videoId;
-        return this.app.allVideos.find((v) => v.id === videoId);
+        return this.app.videoMap.get(videoId);
       })
       .filter((v) => v !== undefined);
 
