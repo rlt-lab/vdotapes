@@ -37,13 +37,26 @@ class FFprobeWrapper {
    * KISS: Simple path checking without complex discovery
    */
   async findFFprobe() {
+    const isWindows = process.platform === 'win32';
+    const exeName = isWindows ? 'ffprobe.exe' : 'ffprobe';
+
     const possiblePaths = [
-      'ffprobe', // System PATH
+      'ffprobe', // System PATH (works on all platforms if in PATH)
+      // Windows-specific paths
+      ...(isWindows ? [
+        'ffprobe.exe',
+        path.join(process.env.ProgramFiles || '', 'FFmpeg', 'bin', 'ffprobe.exe'),
+        path.join(process.env['ProgramFiles(x86)'] || '', 'FFmpeg', 'bin', 'ffprobe.exe'),
+        path.join(process.env.LOCALAPPDATA || '', 'FFmpeg', 'bin', 'ffprobe.exe'),
+        'C:\\FFmpeg\\bin\\ffprobe.exe',
+      ] : []),
+      // macOS/Linux paths
       '/usr/bin/ffprobe',
       '/usr/local/bin/ffprobe',
       '/opt/homebrew/bin/ffprobe', // Apple Silicon Homebrew
-      path.join(process.resourcesPath || '', 'ffprobe'), // Bundled with app
-      path.join(__dirname, '../bin/ffprobe'), // Local bin directory
+      // Bundled with app (platform-aware)
+      path.join(process.resourcesPath || '', exeName),
+      path.join(__dirname, '../bin', exeName),
     ];
 
     for (const probePath of possiblePaths) {

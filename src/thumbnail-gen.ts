@@ -87,7 +87,10 @@ class ThumbnailGeneratorStub {
   private cacheDir: string;
 
   constructor(cacheDir?: string) {
-    this.cacheDir = cacheDir || '/tmp/vdotapes-thumbnails';
+    // Use platform-aware temp directory (works on Windows, macOS, Linux)
+    const os = require('os');
+    const path = require('path');
+    this.cacheDir = cacheDir || path.join(os.tmpdir(), 'vdotapes-thumbnails');
   }
 
   async initialize(): Promise<void> {
