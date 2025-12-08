@@ -1336,6 +1336,36 @@ body {
   border-radius: 9999px;
   font-size: 0.95rem;
 }
+
+/* Tag suggestions */
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 0;
+  min-height: 32px;
+}
+.tag-suggestion {
+  padding: 4px 10px;
+  background: #2b2b2b;
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  user-select: none;
+  color: #e0e0e0;
+}
+.tag-suggestion:hover {
+  background: #4a9eff;
+}
+.tag-suggestion.applied {
+  opacity: 0.4;
+  cursor: default;
+}
+.tag-suggestion.applied:hover {
+  background: #2b2b2b;
+}
 .meta-row {
   display: flex;
   justify-content: space-between;

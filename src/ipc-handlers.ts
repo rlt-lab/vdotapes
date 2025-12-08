@@ -13,11 +13,14 @@ import type {
 } from '../types/core';
 import type { DatabaseStats, VideoTableRow } from '../types/database';
 import { IPCError } from '../types/errors';
+import { createTimestamp, createFilePath } from '../types/guards';
 
 import VideoDatabase from './database/VideoDatabase';
 import VideoScanner from './video-scanner';
 import ThumbnailGenerator from './thumbnail-gen';
 import FolderMetadataManager from './folder-metadata';
+import TagSuggestionManager from './tag-suggestion-manager';
+import type { TagSuggestion } from '../types/ipc';
 
 interface UserPreferences {
   readonly lastFolder?: string | null;
@@ -91,6 +94,7 @@ class IPCHandlers {
   private database: VideoDatabase;
   private thumbnailGenerator: any | null = null;
   private folderMetadata: FolderMetadataManager;
+  private tagSuggestionManager!: TagSuggestionManager;
   private isInitialized = false;
 
   constructor() {
@@ -105,6 +109,7 @@ class IPCHandlers {
     try {
       await this.database.initialize();
       this.thumbnailGenerator = new ThumbnailGenerator();
+      this.tagSuggestionManager = new TagSuggestionManager(this.folderMetadata, this.database);
       this.isInitialized = true;
       console.log('IPC handlers initialized successfully');
     } catch (error) {
@@ -158,6 +163,7 @@ class IPCHandlers {
     ipcMain.handle('tags-all', this.handleTagsAll.bind(this));
     ipcMain.handle('tags-search', this.handleTagsSearch.bind(this));
     ipcMain.handle('get-all-video-tags', this.handleGetAllVideoTags.bind(this));
+    ipcMain.handle('tags-suggestions', this.handleTagsSuggestions.bind(this));
 
     // Backup/Restore handlers
     ipcMain.handle('backup-export', this.handleBackupExport.bind(this));
@@ -189,6 +195,9 @@ class IPCHandlers {
         console.log(`[VideoScanner] Re-scanning ${folderPath}, clearing existing videos...`);
         this.clearVideosFromFolder(lastFolder);
       }
+
+      // Clear tag suggestion session state when switching folders
+      this.tagSuggestionManager.clearSession();
 
       // Initialize folder metadata (load existing or create new)
       await this.folderMetadata.initializeFolder(folderPath);
@@ -542,6 +551,8 @@ class IPCHandlers {
       const success = await this.folderMetadata.addTag(videoId, tagName);
       if (success) {
         this.database.addTag(videoId, tagName);
+        // Record for tag suggestions
+        this.tagSuggestionManager.recordTagUsage(tagName);
       }
       return success;
     } catch (error) {
@@ -633,6 +644,24 @@ class IPCHandlers {
     }
   }
 
+  async handleTagsSuggestions(
+    _event: IpcMainInvokeEvent,
+    videoId: VideoId,
+    subfolder: string,
+    limit = 12
+  ): Promise<TagSuggestion[]> {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      return await this.tagSuggestionManager.getSuggestions(videoId, subfolder, limit);
+    } catch (error) {
+      console.error('Error getting tag suggestions:', error);
+      return [];
+    }
+  }
+
   async handleBackupExport(): Promise<BackupResult> {
     try {
       if (!this.isInitialized) await this.initialize();
@@ -716,11 +745,34 @@ class IPCHandlers {
       const result = await this.thumbnailGenerator.generateThumbnail(videoPath, timestamp);
 
       if (result.success && result.thumbnailPath) {
-        const videoId = this.videoScanner.generateVideoId(videoPath, {
-          size: 0,
-          lastModified: Date.now() as any,
-          created: Date.now() as any,
-        });
+        // Get actual file stats for correct video ID generation
+        const stats = await fs.stat(videoPath);
+        const fileMetadata = {
+          size: stats.size,
+          lastModified: createTimestamp(Math.floor(stats.mtimeMs)),
+          created: createTimestamp(Math.floor(stats.birthtimeMs || stats.ctimeMs)),
+        };
+
+        const videoId = this.videoScanner.generateVideoId(videoPath, fileMetadata);
+
+        // Ensure video exists in database before saving thumbnail
+        // This prevents FK constraint violations when thumbnail generation races video insertion
+        const existingVideo = this.database.getVideoById(videoId);
+        if (!existingVideo) {
+          const videoName = path.basename(videoPath);
+          const videoFolder = path.dirname(videoPath);
+
+          this.database.addVideo({
+            id: videoId,
+            name: videoName,
+            path: createFilePath(videoPath),
+            folder: videoFolder,
+            size: stats.size,
+            lastModified: fileMetadata.lastModified,
+            created: fileMetadata.created,
+          });
+        }
+
         this.database.saveThumbnail(videoId, result.thumbnailPath, timestamp);
       }
 

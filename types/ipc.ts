@@ -11,6 +11,12 @@ import {
   BackupData,
 } from './core';
 
+// Tag suggestion types
+export interface TagSuggestion {
+  readonly name: string;
+  readonly source: 'folder' | 'recent' | 'global';
+}
+
 // IPC result wrapper types
 export interface IPCSuccessResult<T> {
   readonly success: true;
@@ -101,6 +107,7 @@ export interface ElectronAPI {
   readonly listAllTags: () => Promise<readonly string[]>;
   readonly searchByTag: (query: string) => Promise<readonly VideoRecord[]>;
   readonly getAllVideoTags: () => Promise<Record<string, string[]>>;
+  readonly getTagSuggestions: (videoId: VideoId, subfolder: string, limit?: number) => Promise<readonly TagSuggestion[]>;
 
   // Thumbnail operations
   readonly generateThumbnail: (videoPath: FilePath, timestamp: number) => Promise<Buffer | null>;

@@ -96,13 +96,20 @@ class VideoExpander {
       goToBtn.onclick = () => this.app.eventController.openFileLocation(video.path);
     }
 
-    // Load tags
+    // Load tags and suggestions in parallel
     try {
-      const tags = await window.electronAPI.listTags(video.id);
+      const [tags, suggestions] = await Promise.all([
+        window.electronAPI.listTags(video.id),
+        window.electronAPI.getTagSuggestions(video.id, video.folder || '')
+      ]);
       this.renderTagList(tags || [], video.id);
+      this.currentSuggestions = suggestions || [];
+      this.renderTagSuggestions(this.currentSuggestions, tags || [], video.id);
     } catch (error) {
       console.error('Error loading tags:', error);
       this.renderTagList([], video.id);
+      this.currentSuggestions = [];
+      this.renderTagSuggestions([], [], video.id);
     }
 
     // Setup tag input
@@ -116,7 +123,9 @@ class VideoExpander {
             tagInput.value = '';
             const tags = await window.electronAPI.listTags(video.id);
             this.renderTagList(tags || [], video.id);
-            
+            // Re-render suggestions so added tag becomes dimmed
+            this.renderTagSuggestions(this.currentSuggestions, tags || [], video.id);
+
             // Update app state so filters work immediately
             this.app.videoTags[video.id] = tags || [];
             // Reload all tags for autocomplete
@@ -160,12 +169,60 @@ class VideoExpander {
     return div.innerHTML;
   }
 
+  renderTagSuggestions(suggestions, appliedTags, videoId) {
+    const container = document.getElementById('tagSuggestions');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!suggestions || suggestions.length === 0) {
+      return;
+    }
+
+    const appliedSet = new Set(appliedTags || []);
+
+    for (const suggestion of suggestions) {
+      const pill = document.createElement('span');
+      pill.className = 'tag-suggestion';
+      pill.textContent = suggestion.name;
+      pill.dataset.tag = suggestion.name;
+      pill.dataset.videoId = videoId;
+
+      if (appliedSet.has(suggestion.name)) {
+        pill.classList.add('applied');
+      } else {
+        pill.addEventListener('click', () => {
+          this.addTagFromSuggestion(videoId, suggestion.name);
+        });
+      }
+
+      container.appendChild(pill);
+    }
+  }
+
+  async addTagFromSuggestion(videoId, tagName) {
+    try {
+      await window.electronAPI.addTag(videoId, tagName);
+      const tags = await window.electronAPI.listTags(videoId);
+      this.app.videoTags[videoId] = tags || [];
+      this.renderTagList(tags || [], videoId);
+      this.renderTagSuggestions(this.currentSuggestions, tags || [], videoId);
+      if (this.app.tagManager) {
+        await this.app.tagManager.loadAllTags();
+      }
+    } catch (error) {
+      console.error('Error adding tag from suggestion:', error);
+    }
+  }
+
   async removeTag(videoId, tagName) {
     try {
       await window.electronAPI.removeTag(videoId, tagName);
       const tags = await window.electronAPI.listTags(videoId);
       this.renderTagList(tags || [], videoId);
-      
+      // Re-render suggestions so removed tag becomes clickable again
+      this.renderTagSuggestions(this.currentSuggestions, tags || [], videoId);
+
       // Update app state so filters work immediately
       this.app.videoTags[videoId] = tags || [];
       // Reload all tags for autocomplete
