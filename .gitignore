@@ -67,3 +67,4 @@ app-update.yml
 
 # Test video files
 testvids/
+.worktrees/
