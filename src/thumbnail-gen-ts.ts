@@ -72,6 +72,70 @@ const DEFAULT_QUALITY = 85;
 const DEFAULT_FORMAT = 'jpeg';
 
 /**
+ * Default subprocess timeout (30 seconds)
+ */
+const DEFAULT_TIMEOUT_MS = 30000;
+
+/**
+ * Spawn a process with timeout protection
+ */
+function spawnWithTimeout(
+  command: string,
+  args: string[],
+  options: { timeout?: number; stdio?: 'pipe' | 'ignore' } = {}
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const timeoutMs = options.timeout ?? DEFAULT_TIMEOUT_MS;
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(command, args, { stdio: options.stdio === 'ignore' ? 'ignore' : 'pipe' });
+
+    let stdout = '';
+    let stderr = '';
+    let killed = false;
+
+    const timeout = setTimeout(() => {
+      killed = true;
+      proc.kill('SIGKILL');
+      reject(new Error(`Process ${command} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    if (proc.stdout) {
+      proc.stdout.on('data', (data) => {
+        stdout += data.toString();
+        // Limit buffer size to 1MB
+        if (stdout.length > 1024 * 1024) {
+          stdout = stdout.slice(-1024 * 1024);
+        }
+      });
+    }
+
+    if (proc.stderr) {
+      proc.stderr.on('data', (data) => {
+        stderr += data.toString();
+        // Limit buffer size to 100KB
+        if (stderr.length > 100 * 1024) {
+          stderr = stderr.slice(-100 * 1024);
+        }
+      });
+    }
+
+    proc.on('close', (code) => {
+      clearTimeout(timeout);
+      if (!killed) {
+        resolve({ stdout, stderr, exitCode: code ?? 1 });
+      }
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timeout);
+      if (!killed) {
+        reject(err);
+      }
+    });
+  });
+}
+
+/**
  * ThumbnailGeneratorTS - Pure TypeScript implementation using FFmpeg subprocess
  */
 export class ThumbnailGeneratorTS {
@@ -80,6 +144,7 @@ export class ThumbnailGeneratorTS {
   private currentCacheSize: number = 0;
   private cacheEntries: Map<string, CacheEntry> = new Map();
   private initialized: boolean = false;
+  private operationQueue: Promise<void> = Promise.resolve();
 
   /**
    * Create a new thumbnail generator
@@ -124,6 +189,26 @@ export class ThumbnailGeneratorTS {
    * @returns Result containing thumbnail path or error
    */
   async generateThumbnail(
+    videoPath: string,
+    timestamp?: number,
+    width: number = DEFAULT_WIDTH,
+    height: number = DEFAULT_HEIGHT
+  ): Promise<ThumbnailResult> {
+    // Queue this operation to prevent race conditions on cache state
+    return new Promise((resolve) => {
+      this.operationQueue = this.operationQueue.then(async () => {
+        const result = await this._generateThumbnailInternal(videoPath, timestamp, width, height);
+        resolve(result);
+      }).catch(() => {
+        // Ensure queue continues even if operation fails
+      });
+    });
+  }
+
+  /**
+   * Internal thumbnail generation implementation
+   */
+  private async _generateThumbnailInternal(
     videoPath: string,
     timestamp?: number,
     width: number = DEFAULT_WIDTH,
@@ -220,11 +305,18 @@ export class ThumbnailGeneratorTS {
    * Get cached thumbnail path without generating
    *
    * @param videoPath - Absolute path to the video file
-   * @param timestamp - Optional timestamp in seconds (unused, for API compatibility)
+   * @param timestamp - Optional timestamp in seconds
+   * @param width - Thumbnail width (default: 320)
+   * @param height - Thumbnail height (default: 180)
    * @returns Path to cached thumbnail or null if not cached
    */
-  async getThumbnailPath(videoPath: string, _timestamp?: number): Promise<string | null> {
-    const cacheKey = this.getCacheKey(videoPath, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+  async getThumbnailPath(
+    videoPath: string,
+    timestamp?: number,
+    width: number = DEFAULT_WIDTH,
+    height: number = DEFAULT_HEIGHT
+  ): Promise<string | null> {
+    const cacheKey = this.getCacheKey(videoPath, width, height, timestamp);
     const cachePath = join(this.cacheDir, `${cacheKey}.jpg`);
 
     try {
@@ -349,136 +441,91 @@ export class ThumbnailGeneratorTS {
    * Get smart timestamp for thumbnail (10% into video, clamped to 1-30 seconds)
    */
   private async getSmartTimestamp(videoPath: string): Promise<number> {
-    return new Promise((resolve) => {
-      const proc = spawn('ffprobe', [
+    try {
+      const result = await spawnWithTimeout('ffprobe', [
         '-v', 'error',
         '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1',
         videoPath,
       ]);
 
-      let output = '';
-      proc.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      proc.on('close', () => {
-        const duration = parseFloat(output) || 10;
-        // 10% into video, minimum 1 second, maximum 30 seconds
-        const timestamp = Math.min(Math.max(duration * 0.1, 1), 30);
-        resolve(timestamp);
-      });
-
-      proc.on('error', () => {
-        // Default to 5 seconds if ffprobe fails
-        resolve(5);
-      });
-    });
+      const duration = parseFloat(result.stdout) || 10;
+      // 10% into video, minimum 1 second, maximum 30 seconds
+      return Math.min(Math.max(duration * 0.1, 1), 30);
+    } catch {
+      // Default to 5 seconds if ffprobe fails or times out
+      return 5;
+    }
   }
 
   /**
    * Run FFmpeg to generate thumbnail
    */
-  private runFFmpeg(
+  private async runFFmpeg(
     inputPath: string,
     outputPath: string,
     timestamp: number,
     width: number,
     height: number
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const args = [
-        '-ss', String(timestamp),
-        '-i', inputPath,
-        '-vframes', '1',
-        '-vf', `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
-        '-q:v', String(Math.round((100 - DEFAULT_QUALITY) / 10 + 1)), // Convert quality to FFmpeg scale
-        '-y', // Overwrite output
-        outputPath,
-      ];
+    const args = [
+      '-ss', String(timestamp),
+      '-i', inputPath,
+      '-vframes', '1',
+      '-vf', `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
+      '-q:v', String(Math.round((100 - DEFAULT_QUALITY) / 10 + 1)), // Convert quality to FFmpeg scale
+      '-y', // Overwrite output
+      outputPath,
+    ];
 
-      const proc = spawn('ffmpeg', args, { stdio: 'pipe' });
+    const result = await spawnWithTimeout('ffmpeg', args);
 
-      let stderr = '';
-      proc.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`FFmpeg exited with code ${code}: ${stderr.slice(-500)}`));
-        }
-      });
-
-      proc.on('error', (error) => {
-        reject(new Error(`FFmpeg failed to start: ${error.message}`));
-      });
-    });
+    if (result.exitCode !== 0) {
+      throw new Error(`FFmpeg exited with code ${result.exitCode}: ${result.stderr.slice(-500)}`);
+    }
   }
 
   /**
    * Run FFprobe to extract video metadata
    */
-  private runFFprobe(videoPath: string): Promise<VideoMetadata> {
-    return new Promise((resolve, reject) => {
-      const args = [
-        '-v', 'error',
-        '-select_streams', 'v:0',
-        '-show_entries', 'stream=width,height,codec_name,bit_rate,r_frame_rate:format=duration,bit_rate',
-        '-of', 'json',
-        videoPath,
-      ];
+  private async runFFprobe(videoPath: string): Promise<VideoMetadata> {
+    const args = [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height,codec_name,bit_rate,r_frame_rate:format=duration,bit_rate',
+      '-of', 'json',
+      videoPath,
+    ];
 
-      const proc = spawn('ffprobe', args, { stdio: 'pipe' });
+    const result = await spawnWithTimeout('ffprobe', args);
 
-      let stdout = '';
-      let stderr = '';
+    if (result.exitCode !== 0) {
+      throw new Error(`FFprobe exited with code ${result.exitCode}: ${result.stderr}`);
+    }
 
-      proc.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
+    try {
+      const data = JSON.parse(result.stdout);
+      const stream = data.streams?.[0] || {};
+      const format = data.format || {};
 
-      proc.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
+      // Parse frame rate (e.g., "30000/1001" or "30/1")
+      let fps = 0;
+      if (stream.r_frame_rate) {
+        const [num, den] = stream.r_frame_rate.split('/').map(Number);
+        fps = den ? num / den : num;
+      }
 
-      proc.on('close', (code) => {
-        if (code !== 0) {
-          reject(new Error(`FFprobe exited with code ${code}: ${stderr}`));
-          return;
-        }
-
-        try {
-          const data = JSON.parse(stdout);
-          const stream = data.streams?.[0] || {};
-          const format = data.format || {};
-
-          // Parse frame rate (e.g., "30000/1001" or "30/1")
-          let fps = 0;
-          if (stream.r_frame_rate) {
-            const [num, den] = stream.r_frame_rate.split('/').map(Number);
-            fps = den ? num / den : num;
-          }
-
-          resolve({
-            duration: parseFloat(format.duration) || 0,
-            width: stream.width || 0,
-            height: stream.height || 0,
-            codec: stream.codec_name || 'unknown',
-            bitrate: parseInt(format.bit_rate || stream.bit_rate || '0', 10),
-            fps: Math.round(fps * 100) / 100, // Round to 2 decimals
-          });
-        } catch (parseError) {
-          reject(new Error(`Failed to parse FFprobe output: ${parseError}`));
-        }
-      });
-
-      proc.on('error', (error) => {
-        reject(new Error(`FFprobe failed to start: ${error.message}`));
-      });
-    });
+      return {
+        duration: parseFloat(format.duration) || 0,
+        width: stream.width || 0,
+        height: stream.height || 0,
+        codec: stream.codec_name || 'unknown',
+        bitrate: parseInt(format.bit_rate || stream.bit_rate || '0', 10),
+        fps: Math.round(fps * 100) / 100, // Round to 2 decimals
+      };
+    } catch (parseError) {
+      throw new Error(`Failed to parse FFprobe output: ${parseError}`);
+    }
   }
 
   /**
@@ -555,17 +602,12 @@ export class ThumbnailGeneratorTS {
  * @returns Promise resolving to true if FFmpeg is available
  */
 export async function isFfmpegAvailable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const proc = spawn('ffmpeg', ['-version'], { stdio: 'pipe' });
-
-    proc.on('close', (code) => {
-      resolve(code === 0);
-    });
-
-    proc.on('error', () => {
-      resolve(false);
-    });
-  });
+  try {
+    const result = await spawnWithTimeout('ffmpeg', ['-version'], { timeout: 5000 });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -583,67 +625,63 @@ export async function generateThumbnailSimple(
 ): Promise<ThumbnailResult> {
   const ts = timestamp ?? 5;
 
-  return new Promise((resolve) => {
-    const args = [
-      '-ss', String(ts),
-      '-i', videoPath,
-      '-vframes', '1',
-      '-vf', `scale=${DEFAULT_WIDTH}:${DEFAULT_HEIGHT}:force_original_aspect_ratio=decrease`,
-      '-y',
-      outputPath,
-    ];
+  const args = [
+    '-ss', String(ts),
+    '-i', videoPath,
+    '-vframes', '1',
+    '-vf', `scale=${DEFAULT_WIDTH}:${DEFAULT_HEIGHT}:force_original_aspect_ratio=decrease`,
+    '-y',
+    outputPath,
+  ];
 
-    const proc = spawn('ffmpeg', args, { stdio: 'pipe' });
+  try {
+    const result = await spawnWithTimeout('ffmpeg', args);
 
-    proc.on('close', async (code) => {
-      if (code === 0) {
-        try {
-          const stats = await stat(outputPath);
-          resolve({
-            success: true,
-            thumbnailPath: outputPath,
-            width: DEFAULT_WIDTH,
-            height: DEFAULT_HEIGHT,
-            format: DEFAULT_FORMAT,
-            fileSize: stats.size,
-            timestamp: ts,
-          });
-        } catch {
-          resolve({
-            success: false,
-            width: 0,
-            height: 0,
-            format: DEFAULT_FORMAT,
-            fileSize: 0,
-            timestamp: ts,
-            error: 'Failed to stat output file',
-          });
-        }
-      } else {
-        resolve({
+    if (result.exitCode === 0) {
+      try {
+        const stats = await stat(outputPath);
+        return {
+          success: true,
+          thumbnailPath: outputPath,
+          width: DEFAULT_WIDTH,
+          height: DEFAULT_HEIGHT,
+          format: DEFAULT_FORMAT,
+          fileSize: stats.size,
+          timestamp: ts,
+        };
+      } catch {
+        return {
           success: false,
           width: 0,
           height: 0,
           format: DEFAULT_FORMAT,
           fileSize: 0,
           timestamp: ts,
-          error: `FFmpeg exited with code ${code}`,
-        });
+          error: 'Failed to stat output file',
+        };
       }
-    });
-
-    proc.on('error', (error) => {
-      resolve({
+    } else {
+      return {
         success: false,
         width: 0,
         height: 0,
         format: DEFAULT_FORMAT,
         fileSize: 0,
         timestamp: ts,
-        error: `FFmpeg failed: ${error.message}`,
-      });
-    });
-  });
+        error: `FFmpeg exited with code ${result.exitCode}`,
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      width: 0,
+      height: 0,
+      format: DEFAULT_FORMAT,
+      fileSize: 0,
+      timestamp: ts,
+      error: `FFmpeg failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 // Export default for CommonJS compatibility
