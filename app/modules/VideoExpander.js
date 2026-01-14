@@ -54,7 +54,7 @@ class VideoExpander {
 
     // Update metadata fields
     if (metaFolder) {
-      metaFolder.textContent = video.folder || '(Root)';
+      metaFolder.textContent = video.folder || 'Root folder';
       // Make folder name clickable to filter by that subfolder
       metaFolder.classList.add('clickable-folder');
       metaFolder.style.cursor = 'pointer';

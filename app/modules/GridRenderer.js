@@ -195,10 +195,10 @@ class GridRenderer {
   createVideoItemHTML(video, index) {
     const isFavorited = video.isFavorite === true;
     const hasMetadata = video.duration || video.width || video.height;
+    const folderDisplay = video.folder || 'Root folder';
 
-    const folderTitle = video.folder || 'Root folder';
     return `
-      <div class="video-item ${!video.isValid && hasMetadata ? 'invalid-metadata' : ''}" data-index="${index}" data-video-id="${video.id}" data-folder="${video.folder || ''}" data-last-modified="${video.lastModified || 0}" title="${folderTitle}">
+      <div class="video-item ${!video.isValid && hasMetadata ? 'invalid-metadata' : ''}" data-index="${index}" data-video-id="${video.id}" data-folder="${video.folder || ''}" data-last-modified="${video.lastModified || 0}">
         <!-- Thumbnail placeholder (shows while loading or on error) -->
         <div class="video-thumbnail" data-video-id="${video.id}">
           <div class="thumbnail-loading">
@@ -212,7 +212,6 @@ class GridRenderer {
           muted
           loop
           preload="none"
-          title="${folderTitle}"
         ></video>
         <button class="video-favorite ${isFavorited ? 'favorited' : ''}" data-video-id="${video.id}">
           <svg viewBox="0 0 24 24" class="heart-icon">
@@ -220,11 +219,9 @@ class GridRenderer {
           </svg>
         </button>
         ${this.createMetadataBadges(video)}
-        <div class="video-folder-label">${video.folder || 'Root folder'}</div>
+        <div class="video-folder-label">${folderDisplay}</div>
         <div class="video-overlay">
-          <div class="video-name" title="${video.folder || 'Root folder'}">
-            ${video.folder || 'Root folder'}
-          </div>
+          <div class="video-name">${folderDisplay}</div>
           <div class="video-info">
             ${this.formatVideoInfo(video)}
           </div>

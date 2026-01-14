@@ -6,7 +6,7 @@
  */
 
 import { readdir, stat } from 'fs/promises';
-import { dirname, join } from 'path';
+import { dirname, join, relative } from 'path';
 
 import type {
   VideoId,
@@ -174,12 +174,15 @@ async function* scanVideosAsync(folderPath: string): AsyncGenerator<FileEntry, v
     const parentPath = (entry as any).parentPath ?? (entry as any).path ?? folderPath;
     const fullPath = join(parentPath, entry.name);
 
+    // Compute relative subfolder from root (e.g., "subfolder/nested" or "" for root)
+    const relativeFolder = relative(folderPath, dirname(fullPath));
+
     try {
       const stats = await stat(fullPath);
       yield {
         path: fullPath,
         name: entry.name,
-        folder: dirname(fullPath),
+        folder: relativeFolder,
         size: stats.size,
         mtime: stats.mtimeMs,
         birthtime: stats.birthtimeMs,
