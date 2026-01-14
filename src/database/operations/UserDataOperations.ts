@@ -124,6 +124,7 @@ export class UserDataOperations {
 
   /**
    * Toggle favorite status for a video
+   * Atomic operation with transaction safety - fixes N+1 query issue
    */
   toggleFavorite(videoId: VideoId): boolean {
     if (!this.core.isInitialized()) {
@@ -131,29 +132,73 @@ export class UserDataOperations {
     }
 
     const monitoredQuery = this.monitor.wrapQuery('toggleFavorite', () => {
+      const db = this.core.getConnection();
+
+      // Use transaction for atomicity
+      db.exec('BEGIN IMMEDIATE');
       try {
-        const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          SELECT video_id FROM favorites WHERE video_id = ?
-        `);
+        // Check current favorite status from videos table (source of truth)
+        const checkStmt = db.prepare(`SELECT favorite FROM videos WHERE id = ?`);
+        const existing = checkStmt.get(videoId) as { favorite: number } | undefined;
 
-        const existing = stmt.get(videoId);
+        if (!existing) {
+          // Video doesn't exist in database
+          db.exec('ROLLBACK');
+          console.error('Error toggling favorite: video not found in database');
+          return false;
+        }
 
-        let result;
-        if (existing) {
-          result = this.removeFavorite(videoId);
+        const isFavorite = existing.favorite === 1;
+        const newFavoriteValue = isFavorite ? 0 : 1;
+
+        // Update videos.favorite column (primary)
+        const updateVideoStmt = db.prepare(`UPDATE videos SET favorite = ? WHERE id = ?`);
+        updateVideoStmt.run(newFavoriteValue, videoId);
+
+        // DUAL-WRITE: Update old favorites table for rollback safety
+        const backupTableExists = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_favorites_v1'"
+        ).get();
+
+        if (backupTableExists) {
+          if (newFavoriteValue === 1) {
+            const insertBackupStmt = db.prepare(`
+              INSERT OR IGNORE INTO _backup_favorites_v1 (video_id) VALUES (?)
+            `);
+            insertBackupStmt.run(videoId);
+          } else {
+            const deleteBackupStmt = db.prepare(`
+              DELETE FROM _backup_favorites_v1 WHERE video_id = ?
+            `);
+            deleteBackupStmt.run(videoId);
+          }
+        }
+
+        // Also update new favorites table for compatibility with code reading from it
+        if (newFavoriteValue === 1) {
+          const insertFavStmt = db.prepare(`
+            INSERT OR IGNORE INTO favorites (video_id, added_at) VALUES (?, datetime('now'))
+          `);
+          insertFavStmt.run(videoId);
         } else {
-          result = this.addFavorite(videoId);
+          const deleteFavStmt = db.prepare(`DELETE FROM favorites WHERE video_id = ?`);
+          deleteFavStmt.run(videoId);
         }
 
-        // Invalidate cache
-        if (result) {
-          this.cache.invalidate('getVideos');
-          this.cache.invalidate('getFavorites');
-        }
+        db.exec('COMMIT');
 
-        return result;
+        // Invalidate cache after successful commit
+        this.cache.invalidate('favorites');
+        this.cache.invalidate('getVideos');
+        this.cache.invalidate('getFavorites');
+
+        return true;
       } catch (error) {
+        try {
+          db.exec('ROLLBACK');
+        } catch (rollbackError) {
+          console.error('Error rolling back toggleFavorite transaction:', rollbackError);
+        }
         console.error('Error toggling favorite:', error);
         return false;
       }
@@ -430,6 +475,7 @@ export class UserDataOperations {
 
   /**
    * Toggle hidden file status
+   * Atomic operation with transaction safety - fixes N+1 query issue
    */
   toggleHiddenFile(videoId: VideoId): boolean {
     if (!this.core.isInitialized()) {
@@ -437,20 +483,73 @@ export class UserDataOperations {
     }
 
     const monitoredQuery = this.monitor.wrapQuery('toggleHiddenFile', () => {
+      const db = this.core.getConnection();
+
+      // Use transaction for atomicity
+      db.exec('BEGIN IMMEDIATE');
       try {
-        const db = this.core.getConnection();
-        const stmt = db.prepare(`
-          SELECT video_id FROM hidden_files WHERE video_id = ?
-        `);
+        // Check current hidden status from videos table (source of truth)
+        const checkStmt = db.prepare(`SELECT hidden FROM videos WHERE id = ?`);
+        const existing = checkStmt.get(videoId) as { hidden: number } | undefined;
 
-        const existing = stmt.get(videoId);
-
-        if (existing) {
-          return this.removeHiddenFile(videoId);
-        } else {
-          return this.addHiddenFile(videoId);
+        if (!existing) {
+          // Video doesn't exist in database
+          db.exec('ROLLBACK');
+          console.error('Error toggling hidden file: video not found in database');
+          return false;
         }
+
+        const isHidden = existing.hidden === 1;
+        const newHiddenValue = isHidden ? 0 : 1;
+
+        // Update videos.hidden column (primary)
+        const updateVideoStmt = db.prepare(`UPDATE videos SET hidden = ? WHERE id = ?`);
+        updateVideoStmt.run(newHiddenValue, videoId);
+
+        // DUAL-WRITE: Update old hidden_files table for rollback safety
+        const backupTableExists = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = '_backup_hidden_files_v1'"
+        ).get();
+
+        if (backupTableExists) {
+          if (newHiddenValue === 1) {
+            const insertBackupStmt = db.prepare(`
+              INSERT OR IGNORE INTO _backup_hidden_files_v1 (video_id) VALUES (?)
+            `);
+            insertBackupStmt.run(videoId);
+          } else {
+            const deleteBackupStmt = db.prepare(`
+              DELETE FROM _backup_hidden_files_v1 WHERE video_id = ?
+            `);
+            deleteBackupStmt.run(videoId);
+          }
+        }
+
+        // Also update new hidden_files table for compatibility with code reading from it
+        if (newHiddenValue === 1) {
+          const insertHiddenStmt = db.prepare(`
+            INSERT OR IGNORE INTO hidden_files (video_id, hidden_at) VALUES (?, datetime('now'))
+          `);
+          insertHiddenStmt.run(videoId);
+        } else {
+          const deleteHiddenStmt = db.prepare(`DELETE FROM hidden_files WHERE video_id = ?`);
+          deleteHiddenStmt.run(videoId);
+        }
+
+        db.exec('COMMIT');
+
+        // Invalidate cache after successful commit
+        this.cache.invalidate('hidden');
+        this.cache.invalidate('getVideos');
+        this.cache.invalidate('getHiddenFiles');
+
+        return true;
       } catch (error) {
+        try {
+          db.exec('ROLLBACK');
+        } catch (rollbackError) {
+          console.error('Error rolling back toggleHiddenFile transaction:', rollbackError);
+        }
         console.error('Error toggling hidden file:', error);
         return false;
       }
