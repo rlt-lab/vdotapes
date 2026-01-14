@@ -251,26 +251,26 @@ getCacheStats(): Promise<CacheStats>
 
 ## Phase 5: Code Review Fixes
 
-### 5.1 Fix HIGH Severity Issues (Required)
+### 5.1 Fix HIGH Severity Issues (Required) ✅
 **File:** `src/thumbnail-gen-ts.ts`
 
 | Task | Description | Lines |
 |------|-------------|-------|
-| ☐ Add subprocess timeout | Wrap FFmpeg/FFprobe spawn() calls with 30-60s timeout to prevent hangs on malformed videos | 353-481 |
-| ☐ Fix race condition in cache | Add mutex/lock for `cacheEntries` Map and `currentCacheSize` mutations during concurrent `generateThumbnail()` calls | 153-186 |
-| ☐ Fix cache key mismatch | Update `getThumbnailPath()` to pass timestamp parameter to `getCacheKey()` - currently omits timestamp causing cache misses | 227 |
+| ☑ Add subprocess timeout | Wrap FFmpeg/FFprobe spawn() calls with 30-60s timeout to prevent hangs on malformed videos | 353-481 |
+| ☑ Fix race condition in cache | Add mutex/lock for `cacheEntries` Map and `currentCacheSize` mutations during concurrent `generateThumbnail()` calls | 153-186 |
+| ☑ Fix cache key mismatch | Update `getThumbnailPath()` to pass timestamp parameter to `getCacheKey()` - currently omits timestamp causing cache misses | 227 |
 
-### 5.2 Fix MEDIUM Severity Issues (Recommended)
+### 5.2 Fix MEDIUM Severity Issues (Recommended) ✅
 **Files:** `src/thumbnail-gen-ts.ts`, `src/video-scanner-ts.ts`
 
 | Task | Description | File | Lines |
 |------|-------------|------|-------|
-| ☐ Add width/height params to getThumbnailPath | Currently hardcodes 320x180, can't find custom-sized thumbnails | thumbnail-gen-ts.ts | 226-242 |
-| ☐ Check FFprobe exit code | Currently parses output even on failure | thumbnail-gen-ts.ts | 365-370 |
-| ☐ Add child process cleanup | Register cleanup handlers for app shutdown to prevent orphaned processes | thumbnail-gen-ts.ts | all spawn() |
-| ☐ Add output buffer limits | Prevent unbounded memory growth from FFmpeg stderr | thumbnail-gen-ts.ts | 360-445 |
-| ☐ Add error logging in catch blocks | Empty catch blocks lose error context | video-scanner-ts.ts | 187-190 |
-| ☐ Deduplicate video ID generation | Same algorithm copied in 3 places - extract to single function | video-scanner-ts.ts | 103-117, 350-363 |
+| ☑ Add width/height params to getThumbnailPath | Now accepts width/height parameters | thumbnail-gen-ts.ts | 226-242 |
+| ☑ Check FFprobe exit code | Now validates exit code before parsing | thumbnail-gen-ts.ts | 365-370 |
+| ☑ Add child process cleanup | Added activeProcesses tracking and cleanup() | thumbnail-gen-ts.ts | all spawn() |
+| ☑ Add output buffer limits | Added 1MB stdout / 100KB stderr limits in spawnWithTimeout | thumbnail-gen-ts.ts | 360-445 |
+| ☑ Add error logging in catch blocks | Added console.warn with error details | video-scanner-ts.ts | 187-190 |
+| ☑ Deduplicate video ID generation | Class method now calls standalone function | video-scanner-ts.ts | 103-117, 350-363 |
 
 ### 5.3 Fix LOW Severity Issues (Optional)
 | Task | Description |
@@ -297,8 +297,8 @@ getCacheStats(): Promise<CacheStats>
 
 ### Architecture
 - [x] No Rust compilation errors (because Rust is gone)
-- [ ] Phase 5.1 HIGH severity issues fixed
-- [ ] Phase 5.2 MEDIUM severity issues fixed (recommended)
+- [x] Phase 5.1 HIGH severity issues fixed
+- [x] Phase 5.2 MEDIUM severity issues fixed
 
 ---
 
