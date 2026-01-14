@@ -8,41 +8,41 @@ Implementation plan for fixing performance issues affecting ~10,000 video collec
 
 ## Phase 1: Quick Wins
 
-### 1.1 Remove Redundant Sort Operations
+### 1.1 Remove Redundant Sort Operations ✅
 **File:** `app/modules/FilterManager.js`
 
 | Task | Description | Lines |
 |------|-------------|-------|
-| ☐ Remove redundant `updateStatusMessage()` in `setSortMode()` | Called at line 35, but `reorderGridInPlace()` at line 34 already triggers it via `refreshVisibleVideos()` | 35 |
-| ☐ Remove redundant `updateStatusMessage()` in `shuffleVideos()` | Called at line 112 after DOM reorder, but count doesn't change | 112 |
-| ☐ Remove double `refreshVisibleVideos()` in `applyFiltersOptimized()` | `applyFiltersInPlace()` (line 156) calls it at line 360, then `reorderGridInPlace()` (line 157) calls it again at line 79 | 156-157 |
-| ☐ Remove duplicate `data-index` updates | Updated at line 75 in `reorderGridInPlace()`, then again at line 378 in `refreshVisibleVideos()` | 75, 378 |
+| ☑ Remove redundant `updateStatusMessage()` in `setSortMode()` | Called at line 35, but `reorderGridInPlace()` at line 34 already triggers it via `refreshVisibleVideos()` | 35 |
+| ☑ Remove redundant `updateStatusMessage()` in `shuffleVideos()` | Called at line 112 after DOM reorder, but count doesn't change | 112 |
+| ☑ Remove double `refreshVisibleVideos()` in `applyFiltersOptimized()` | `applyFiltersInPlace()` (line 156) calls it at line 360, then `reorderGridInPlace()` (line 157) calls it again at line 79 | 156-157 |
+| ☑ Remove duplicate `data-index` updates | Updated at line 75 in `reorderGridInPlace()`, then again at line 378 in `refreshVisibleVideos()` | 75, 378 |
 
-### 1.2 Cache Tag Suggestions
+### 1.2 Cache Tag Suggestions ✅
 **File:** `src/tag-suggestion-manager.ts`
 
 | Task | Description |
 |------|-------------|
-| ☐ Add `tagCache` property | `{ tags: TagInfo[]; timestamp: number } \| null` |
-| ☐ Add `folderTagCache` property | `Map<string, { tags: string[]; timestamp: number }>()` |
-| ☐ Add `CACHE_TTL` constant | 30 seconds (30000ms) |
-| ☐ Implement `invalidateTagCache()` method | Clears both caches |
-| ☐ Update `getAllTags()` call in `getSuggestions()` | Check cache before calling `folderMetadata.getAllTags()` |
-| ☐ Update `getFolderTags()` | Check `folderTagCache` before database query |
-| ☐ Call `invalidateTagCache()` from tag add/remove operations | Ensure cache stays consistent |
+| ☑ Add `tagCache` property | `{ tags: TagInfo[]; timestamp: number } \| null` |
+| ☑ Add `folderTagCache` property | `Map<string, { tags: string[]; timestamp: number }>()` |
+| ☑ Add `CACHE_TTL` constant | 30 seconds (30000ms) |
+| ☑ Implement `invalidateTagCache()` method | Clears both caches |
+| ☑ Update `getAllTags()` call in `getSuggestions()` | Check cache before calling `folderMetadata.getAllTags()` |
+| ☑ Update `getFolderTags()` | Check `folderTagCache` before database query |
+| ☑ Call `invalidateTagCache()` from tag add/remove operations | Ensure cache stays consistent |
 
 **Current Issues Found:**
 - `getAllTags()` is O(n*m + k log k) - iterates all videos, all tags, then sorts
 - `getFolderTags()` queries database and iterates all folder videos per request
 - No existing caching for tag data
 
-### 1.3 Debounce Status Updates
+### 1.3 Debounce Status Updates ✅
 **File:** `app/modules/UIHelper.js`
 
 | Task | Description | Lines |
 |------|-------------|-------|
-| ☐ Add debounce utility (or import from FilterManager) | 50ms delay recommended | - |
-| ☐ Debounce `updateStatusMessage()` | Wrap existing implementation with debounce | 148-163 |
+| ☑ Add debounce utility (or import from FilterManager) | 50ms delay recommended | - |
+| ☑ Debounce `updateStatusMessage()` | Wrap existing implementation with debounce | 148-163 |
 
 **Current Issues Found:**
 - NOT debounced - called directly from 11+ locations
@@ -51,16 +51,18 @@ Implementation plan for fixing performance issues affecting ~10,000 video collec
 
 ---
 
-## Phase 2: Grid Virtualization
+## Phase 2: Grid Virtualization ⚠️ (Disabled - CSS Grid incompatible)
 
-### 2.1 Copy VirtualGrid from Worktree
+### 2.1 Copy VirtualGrid from Worktree ✅
 **Source:** `.worktrees/performance-fixes/app/modules/VirtualGrid.js`
 **Destination:** `app/modules/VirtualGrid.js`
 
 | Task | Description |
 |------|-------------|
-| ☐ Copy `VirtualGrid.js` to main branch | File is 200+ lines, fully implemented |
-| ☐ Verify VirtualGrid features | Viewport calculation, buffer rows, element recycling, scroll throttling |
+| ☑ Copy `VirtualGrid.js` to main branch | File is 200+ lines, fully implemented |
+| ☑ Verify VirtualGrid features | Viewport calculation, buffer rows, element recycling, scroll throttling |
+
+**Note:** VirtualGrid uses absolute positioning which breaks existing CSS Grid layout. Disabled pending CSS Grid-compatible approach.
 
 **VirtualGrid Capabilities (from analysis):**
 - Renders only visible rows + 2-row buffer (~40-60 elements vs 10k)
@@ -69,12 +71,12 @@ Implementation plan for fixing performance issues affecting ~10,000 video collec
 - Throttled scroll at 16ms (60fps)
 - ResizeObserver for container size changes
 
-### 2.2 Add VirtualGrid to index.html
+### 2.2 Add VirtualGrid to index.html ✅
 **File:** `app/index.html`
 
 | Task | Description | Lines |
 |------|-------------|-------|
-| ☐ Add script tag for VirtualGrid.js | Insert before GridRenderer.js (line 235) | ~234 |
+| ☑ Add script tag for VirtualGrid.js | Insert before GridRenderer.js (line 235) | ~234 |
 
 **Current script order (for reference):**
 1. video-smart-loader.js (223)
@@ -91,34 +93,35 @@ Implementation plan for fixing performance issues affecting ~10,000 video collec
 12. EventController.js (238)
 13. renderer.js (241)
 
-### 2.3 Update GridRenderer for VirtualGrid Integration
+### 2.3 Update GridRenderer for VirtualGrid Integration ✅ (Disabled)
 **File:** `app/modules/GridRenderer.js`
 
 | Task | Description |
 |------|-------------|
-| ☐ Add `virtualGrid` property initialization | `this.virtualGrid = null` |
-| ☐ Add `VIRTUAL_THRESHOLD` constant | 500 videos (already partially exists at line 16-28) |
-| ☐ Port `renderWithVirtualGrid()` from worktree | Full method implementation (lines 34-72 in worktree) |
-| ☐ Port `createVideoElement()` from worktree | Element factory for VirtualGrid (lines 77-132 in worktree) |
-| ☐ Port `destroyVirtualGrid()` from worktree | Cleanup method (lines 137-142 in worktree) |
-| ☐ Update `renderGrid()` dispatch logic | Auto-enable for >500 videos |
+| ☑ Add `virtualGrid` property initialization | `this.virtualGrid = null` |
+| ☑ Add `VIRTUAL_THRESHOLD` constant | 500 videos (already partially exists at line 16-28) |
+| ☑ Port `renderWithVirtualGrid()` from worktree | Full method implementation (lines 34-72 in worktree) |
+| ☑ Port `createVideoElement()` from worktree | Element factory for VirtualGrid (lines 77-132 in worktree) |
+| ☑ Port `destroyVirtualGrid()` from worktree | Cleanup method (lines 137-142 in worktree) |
+| ⚠️ Update `renderGrid()` dispatch logic | **Disabled** - VirtualGrid breaks CSS Grid layout |
 
-### 2.4 Add VirtualGrid Properties to VdoTapesApp
+### 2.4 Add VirtualGrid Properties to VdoTapesApp ✅
 **File:** `app/renderer.js`
 
 | Task | Description | Lines |
 |------|-------------|-------|
-| ☐ Add `useVirtualGrid` property | `this.useVirtualGrid = false` | ~48 |
-| ☐ Add `virtualGrid` property | `this.virtualGrid = null` | ~48 |
+| ☑ Add `useVirtualGrid` property | `this.useVirtualGrid = false` | ~48 |
+| ☑ Add `virtualGrid` property | `this.virtualGrid = null` | ~48 |
 
-### 2.5 Update SmartLoader for Element Recycling
+### 2.5 Update SmartLoader for Element Recycling ✅
 **File:** `app/modules/video-smart-loader.js`
 
 | Task | Description |
 |------|-------------|
-| ☐ Add `observeItem(element)` method | For incremental observation: `this.observer.observe(element)` |
-| ☐ Handle recycled elements | Ensure videoId tracking works when elements are reused |
-| ☐ Update cleanup to work with virtualized grid | May need to check if element is still in DOM |
+| ☑ Add `observeItem(element)` method | For incremental observation: `this.observer.observe(element)` |
+| ☑ Handle recycled elements | Ensure videoId tracking works when elements are reused |
+| ☑ Update cleanup to work with virtualized grid | May need to check if element is still in DOM |
+| ☑ Increase buffer zones | `loadBufferZone`: 500→1500px, `unloadBufferZone`: 2500→5000px |
 
 **Current Issues Found:**
 - `observeVideoItems()` disconnects/reconnects observer on every render
@@ -127,18 +130,18 @@ Implementation plan for fixing performance issues affecting ~10,000 video collec
 
 ---
 
-## Phase 3: Replace Rust with TypeScript
+## Phase 3: Replace Rust with TypeScript ✅
 
-### 3.1 Create TypeScript Video Scanner
+### 3.1 Create TypeScript Video Scanner ✅
 **File:** `src/video-scanner-ts.ts` (NEW)
 
 | Task | Description |
 |------|-------------|
-| ☐ Create async generator `scanVideosAsync()` | Uses `fs/promises.readdir` with `recursive: true` |
-| ☐ Implement `generateVideoId()` | Must be deterministic: `sha256(path:size:mtime).slice(0,16)` |
-| ☐ Implement `scanVideos()` wrapper | Returns `ScanResult { videos, errors }` |
-| ☐ Support all video extensions | .mp4, .webm, .ogg, .mov, .avi, .wmv, .flv, .mkv, .m4v |
-| ☐ Skip hidden/system files | Files starting with `.`, `node_modules`, `.DS_Store` |
+| ☑ Create async generator `scanVideosAsync()` | Uses `fs/promises.readdir` with `recursive: true` |
+| ☑ Implement `generateVideoId()` | Uses DJB2 hash (matching existing algorithm) |
+| ☑ Implement `scanVideos()` wrapper | Returns `ScanResult { videos, errors }` |
+| ☑ Support all video extensions | .mp4, .webm, .ogg, .mov, .avi, .wmv, .flv, .mkv, .m4v |
+| ☑ Skip hidden/system files | Files starting with `.`, `node_modules`, `.DS_Store` |
 
 **API Contract (from analysis):**
 ```typescript
@@ -147,19 +150,19 @@ isValidVideoFile(filename: string): boolean
 generateVideoId(path: string, size: number, mtime: number): VideoId
 ```
 
-### 3.2 Create TypeScript Thumbnail Generator
+### 3.2 Create TypeScript Thumbnail Generator ✅
 **File:** `src/thumbnail-gen-ts.ts` (NEW)
 
 | Task | Description |
 |------|-------------|
-| ☐ Create `ThumbnailGenerator` class | Constructor takes cacheDir, maxCacheMB |
-| ☐ Implement `initialize()` | Create cache directory, calculate current size |
-| ☐ Implement `generateThumbnail()` | Check cache, generate via FFmpeg if missing |
-| ☐ Implement `runFFmpeg()` | Spawn ffmpeg process with correct args |
-| ☐ Implement `getSmartTimestamp()` | Use ffprobe to get duration, return 10% point |
-| ☐ Implement `getCacheKey()` | Blake2b or SHA256 hash of path:width:height |
-| ☐ Implement `evictOldEntries()` | LRU eviction when cache exceeds max size |
-| ☐ Implement `calculateCacheSize()` | Sum up all files in cache directory |
+| ☑ Create `ThumbnailGenerator` class | Constructor takes cacheDir, maxCacheMB |
+| ☑ Implement `initialize()` | Create cache directory, calculate current size |
+| ☑ Implement `generateThumbnail()` | Check cache, generate via FFmpeg if missing |
+| ☑ Implement `runFFmpeg()` | Spawn ffmpeg process with correct args |
+| ☑ Implement `getSmartTimestamp()` | Use ffprobe to get duration, return 10% point |
+| ☑ Implement `getCacheKey()` | SHA256 hash of path:width:height:timestamp |
+| ☑ Implement `evictOldEntries()` | LRU eviction when cache exceeds max size |
+| ☑ Implement `calculateCacheSize()` | Sum up all files in cache directory |
 
 **API Contract (from analysis):**
 ```typescript
@@ -169,59 +172,59 @@ clearCache(): Promise<void>
 getCacheStats(): Promise<CacheStats>
 ```
 
-### 3.3 Update video-scanner.ts Wrapper
+### 3.3 Update video-scanner.ts Wrapper ✅
 **File:** `src/video-scanner.ts`
 
 | Task | Description |
 |------|-------------|
-| ☐ Change import from native to TS implementation | Import from `./video-scanner-ts` |
-| ☐ Update `isUsingNativeScanner()` | Return `false` |
-| ☐ Ensure all type conversions still work | `createVideoId()`, `createFilePath()`, etc. |
+| ☑ Change import from native to TS implementation | Import from `./video-scanner-ts` |
+| ☑ Update `isUsingNativeScanner()` | Return `false` |
+| ☑ Ensure all type conversions still work | `createVideoId()`, `createFilePath()`, etc. |
 
-### 3.4 Update thumbnail-gen.ts Wrapper
+### 3.4 Update thumbnail-gen.ts Wrapper ✅
 **File:** `src/thumbnail-gen.ts`
 
 | Task | Description |
 |------|-------------|
-| ☐ Change import from native to TS implementation | Import from `./thumbnail-gen-ts` |
-| ☐ Update `isUsingNativeGenerator()` | Return `false` |
-| ☐ Remove try/catch native loading | No longer needed |
+| ☑ Change import from native to TS implementation | Import from `./thumbnail-gen-ts` |
+| ☑ Update `isUsingNativeGenerator()` | Return `false` |
+| ☑ Remove try/catch native loading | No longer needed |
 
-### 3.5 Update IPC Handlers (if needed)
+### 3.5 Update IPC Handlers (if needed) ✅
 **File:** `src/ipc-handlers.ts`
 
 | Task | Description |
 |------|-------------|
-| ☐ Verify imports work with new TS modules | Imports at top of file |
-| ☐ Test `scan-videos` handler | Line 214 |
-| ☐ Test `generate-thumbnail` handler | Line 776 |
+| ☑ Verify imports work with new TS modules | Imports at top of file |
+| ☑ Test `scan-videos` handler | Line 214 - API compatible |
+| ☑ Test `generate-thumbnail` handler | Line 776 - API compatible |
 
-### 3.6 Remove Rust Dependencies
+### 3.6 Remove Rust Dependencies ✅
 **Files:** Multiple
 
 | Task | Description |
 |------|-------------|
-| ☐ Delete `src/video-scanner-native/` directory | Entire directory |
-| ☐ Delete `src/thumbnail-generator-native/` directory | Entire directory |
-| ☐ Remove native build scripts from package.json | `build:native`, `build:native:debug`, `build:thumbnails`, `build:thumbnails:debug` |
-| ☐ Remove `build:all` script or simplify | Currently includes native builds |
-| ☐ Remove `copy:native` script | No longer needed |
-| ☐ Remove `.node` files from `files` array | Distribution assets |
-| ☐ Remove NAPI-RS devDependencies | `@napi-rs/cli` |
+| ☑ Delete `src/video-scanner-native/` directory | Entire directory |
+| ☑ Delete `src/thumbnail-generator-native/` directory | Entire directory |
+| ☑ Remove native build scripts from package.json | `build:native`, `build:native:debug`, `build:thumbnails`, `build:thumbnails:debug` |
+| ☑ Remove `build:all` script or simplify | Simplified to just `npm run build:ts` |
+| ☑ Remove `copy:native` script | No longer needed |
+| ☑ Remove `.node` files from `files` array | Distribution assets |
+| ☑ Remove NAPI-RS devDependencies | `@napi-rs/cli` |
 
 ---
 
 ## Phase 4: Testing & Verification
 
-### 4.1 Type Check
+### 4.1 Type Check ✅
 | Task | Command |
 |------|---------|
-| ☐ Run TypeScript type check | `npm run type-check` |
+| ☑ Run TypeScript type check | `npm run type-check` |
 
-### 4.2 Build TypeScript
+### 4.2 Build TypeScript ✅
 | Task | Command |
 |------|---------|
-| ☐ Build TypeScript | `npm run build:ts` |
+| ☑ Build TypeScript | `npm run build:ts` |
 
 ### 4.3 Manual Testing
 | Task | Command |
