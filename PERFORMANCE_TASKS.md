@@ -286,7 +286,7 @@ getCacheStats(): Promise<CacheStats>
 ### Build & Launch
 - [x] `npm run type-check` passes
 - [x] `npm run build:ts` succeeds
-- [ ] App launches with `npm run dev`
+- [x] App launches with `npm run dev`
 
 ### Functionality
 - [ ] Folder scan completes without UI freeze
