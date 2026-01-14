@@ -850,6 +850,9 @@ body {
     transform 0.2s ease,
     filter 0.2s ease;
   aspect-ratio: 3/4;
+  /* Performance: Skip rendering for off-screen items */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px 267px;
 }
 
 .video-item:hover {

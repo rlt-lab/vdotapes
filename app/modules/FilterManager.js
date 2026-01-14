@@ -48,32 +48,48 @@ class FilterManager {
       return;
     }
 
-    const items = Array.from(container.children);
-    if (items.length === 0) return;
-
+    // Sort the data array first (fast, no DOM)
     const mode = this.app.currentSort;
-    items.sort((a, b) => {
-      const fa = (a.dataset.folder || '').toLowerCase();
-      const fb = (b.dataset.folder || '').toLowerCase();
-      const da = parseInt(a.dataset.lastModified || '0', 10);
-      const db = parseInt(b.dataset.lastModified || '0', 10);
-
+    const sortFn = (a, b) => {
       if (mode === 'folder') {
-        const fc = fa.localeCompare(fb);
+        const fc = (a.folder || '').toLowerCase().localeCompare((b.folder || '').toLowerCase());
         if (fc !== 0) return fc;
-        return db - da;
+        return b.lastModified - a.lastModified;
       } else if (mode === 'date') {
-        return db - da;
+        return b.lastModified - a.lastModified;
       }
       return 0;
-    });
+    };
 
-    const frag = document.createDocumentFragment();
-    items.forEach((el) => {
-      frag.appendChild(el);
+    // Sort displayedVideos array (data-only, O(n log n))
+    this.app.displayedVideos.sort(sortFn);
+
+    // Build a map of videoId -> DOM element (O(n) once, not O(n²))
+    const itemMap = new Map();
+    for (const child of container.children) {
+      const videoId = child.dataset?.videoId;
+      if (videoId) itemMap.set(videoId, child);
+    }
+
+    // Reorder DOM to match sorted data using requestAnimationFrame
+    // This prevents blocking the UI thread
+    requestAnimationFrame(() => {
+      const frag = document.createDocumentFragment();
+      let index = 0;
+
+      for (const video of this.app.displayedVideos) {
+        const item = itemMap.get(video.id);
+        if (item) {
+          item.dataset.index = index.toString();
+          frag.appendChild(item);
+          index++;
+        }
+      }
+
+      container.appendChild(frag);
+      // Status update is debounced in UIHelper, so this is safe
+      this.app.updateStatusMessage();
     });
-    container.appendChild(frag);
-    this.refreshVisibleVideos();
   }
 
   async shuffleVideos() {

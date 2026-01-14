@@ -96,20 +96,23 @@ class VideoExpander {
       goToBtn.onclick = () => this.app.eventController.openFileLocation(video.path);
     }
 
-    // Load tags and suggestions in parallel
+    // Use cached tags from app state (loaded during folder scan)
+    // This avoids IPC overhead - tags are already in memory
+    const cachedTags = this.app.videoTags[video.id] || [];
+
+    // Render tags immediately from cache (instant)
+    this.renderTagList(cachedTags, video.id);
+
+    // Load suggestions asynchronously (doesn't block UI)
+    // Only call IPC for suggestions since those require dynamic computation
     try {
-      const [tags, suggestions] = await Promise.all([
-        window.electronAPI.listTags(video.id),
-        window.electronAPI.getTagSuggestions(video.id, video.folder || '')
-      ]);
-      this.renderTagList(tags || [], video.id);
+      const suggestions = await window.electronAPI.getTagSuggestions(video.id, video.folder || '');
       this.currentSuggestions = suggestions || [];
-      this.renderTagSuggestions(this.currentSuggestions, tags || [], video.id);
+      this.renderTagSuggestions(this.currentSuggestions, cachedTags, video.id);
     } catch (error) {
-      console.error('Error loading tags:', error);
-      this.renderTagList([], video.id);
+      console.error('Error loading tag suggestions:', error);
       this.currentSuggestions = [];
-      this.renderTagSuggestions([], [], video.id);
+      this.renderTagSuggestions([], cachedTags, video.id);
     }
 
     // Setup tag input
@@ -121,16 +124,21 @@ class VideoExpander {
           if (t) {
             await window.electronAPI.addTag(video.id, t);
             tagInput.value = '';
-            const tags = await window.electronAPI.listTags(video.id);
-            this.renderTagList(tags || [], video.id);
-            // Re-render suggestions so added tag becomes dimmed
-            this.renderTagSuggestions(this.currentSuggestions, tags || [], video.id);
 
-            // Update app state so filters work immediately
-            this.app.videoTags[video.id] = tags || [];
-            // Reload all tags for autocomplete
+            // Update local state immediately (no IPC needed)
+            const currentTags = this.app.videoTags[video.id] || [];
+            if (!currentTags.includes(t)) {
+              currentTags.push(t);
+            }
+            this.app.videoTags[video.id] = currentTags;
+            this.app.videoTagSets[video.id] = new Set(currentTags);
+
+            this.renderTagList(currentTags, video.id);
+            this.renderTagSuggestions(this.currentSuggestions, currentTags, video.id);
+
+            // Reload all tags for autocomplete (background, non-blocking)
             if (this.app.tagManager) {
-              await this.app.tagManager.loadAllTags();
+              this.app.tagManager.loadAllTags();
             }
           }
         }
@@ -203,12 +211,21 @@ class VideoExpander {
   async addTagFromSuggestion(videoId, tagName) {
     try {
       await window.electronAPI.addTag(videoId, tagName);
-      const tags = await window.electronAPI.listTags(videoId);
-      this.app.videoTags[videoId] = tags || [];
-      this.renderTagList(tags || [], videoId);
-      this.renderTagSuggestions(this.currentSuggestions, tags || [], videoId);
+
+      // Update local state immediately (no IPC needed)
+      const currentTags = this.app.videoTags[videoId] || [];
+      if (!currentTags.includes(tagName)) {
+        currentTags.push(tagName);
+      }
+      this.app.videoTags[videoId] = currentTags;
+      this.app.videoTagSets[videoId] = new Set(currentTags);
+
+      this.renderTagList(currentTags, videoId);
+      this.renderTagSuggestions(this.currentSuggestions, currentTags, videoId);
+
+      // Reload all tags for autocomplete (background, non-blocking)
       if (this.app.tagManager) {
-        await this.app.tagManager.loadAllTags();
+        this.app.tagManager.loadAllTags();
       }
     } catch (error) {
       console.error('Error adding tag from suggestion:', error);
@@ -218,16 +235,18 @@ class VideoExpander {
   async removeTag(videoId, tagName) {
     try {
       await window.electronAPI.removeTag(videoId, tagName);
-      const tags = await window.electronAPI.listTags(videoId);
-      this.renderTagList(tags || [], videoId);
-      // Re-render suggestions so removed tag becomes clickable again
-      this.renderTagSuggestions(this.currentSuggestions, tags || [], videoId);
 
-      // Update app state so filters work immediately
-      this.app.videoTags[videoId] = tags || [];
-      // Reload all tags for autocomplete
+      // Update local state immediately (no IPC needed)
+      const currentTags = (this.app.videoTags[videoId] || []).filter(t => t !== tagName);
+      this.app.videoTags[videoId] = currentTags;
+      this.app.videoTagSets[videoId] = new Set(currentTags);
+
+      this.renderTagList(currentTags, videoId);
+      this.renderTagSuggestions(this.currentSuggestions, currentTags, videoId);
+
+      // Reload all tags for autocomplete (background, non-blocking)
       if (this.app.tagManager) {
-        await this.app.tagManager.loadAllTags();
+        this.app.tagManager.loadAllTags();
       }
     } catch (error) {
       console.error('Error removing tag:', error);

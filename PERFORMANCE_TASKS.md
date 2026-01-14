@@ -281,6 +281,52 @@ getCacheStats(): Promise<CacheStats>
 
 ---
 
+## Phase 6: Runtime Performance Fixes ✅
+
+### 6.1 Fix Sorting Performance ✅
+**File:** `app/modules/FilterManager.js`
+
+| Task | Description |
+|------|-------------|
+| ☑ Sort data array first | Sort `displayedVideos` array (O(n log n)) before touching DOM |
+| ☑ Use Map for element lookup | Build `videoId -> DOM element` Map for O(n) lookup instead of O(n²) querySelector |
+| ☑ Use requestAnimationFrame | Wrap DOM reorder in rAF to prevent blocking UI thread |
+| ☑ Use DocumentFragment | Batch DOM appendChild operations into single fragment |
+| ☑ Remove redundant refreshVisibleVideos | updateStatusMessage is debounced, no need for extra call |
+
+**Before:** O(n²) - sorted DOM in place with querySelector lookups
+**After:** O(n log n) - sort data first, then O(n) DOM reorder with Map lookup
+
+### 6.2 Fix Expanded View Performance ✅
+**File:** `app/modules/VideoExpander.js`
+
+| Task | Description |
+|------|-------------|
+| ☑ Use cached tags | Read from `this.app.videoTags[video.id]` instead of IPC call |
+| ☑ Render tags immediately | No longer waiting for IPC before rendering |
+| ☑ Load suggestions asynchronously | Only IPC call is for suggestions (doesn't block UI) |
+| ☑ Optimize tag add/remove | Update local state directly instead of re-fetching via IPC |
+| ☑ Non-blocking autocomplete refresh | `loadAllTags()` call no longer awaited |
+
+**Before:** 2 IPC calls (listTags + getTagSuggestions) blocking sidebar render
+**After:** 0-1 IPC calls (only getTagSuggestions, cached after first call)
+
+### 6.3 CSS Memory Optimization ✅
+**File:** `app/styles.css`
+
+| Task | Description |
+|------|-------------|
+| ☑ Add content-visibility: auto | Browser skips rendering work for off-screen items |
+| ☑ Add contain-intrinsic-size | Provides size hints for layout without rendering |
+
+**How it works:**
+- `content-visibility: auto` tells Chromium to skip rendering off-screen items
+- Items are still in DOM but not painted/composited until scrolled into view
+- Works with existing CSS Grid layout (unlike VirtualGrid which required absolute positioning)
+- Significant memory reduction without JavaScript changes
+
+---
+
 ## Verification Checklist
 
 ### Build & Launch
