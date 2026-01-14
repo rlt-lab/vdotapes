@@ -12,14 +12,9 @@
     "build:win": "npm run build:ts && electron-builder --win",
     "pack": "npm run build:ts && electron-builder --dir",
     "build:ts": "npm run build:main && npm run build:renderer",
-    "build:main": "tsc -p src/tsconfig.json && npm run copy:native",
+    "build:main": "tsc -p src/tsconfig.json",
     "build:renderer": "tsc -p app/tsconfig.json",
-    "copy:native": "node scripts/copy-native.js",
-    "build:native": "cd src/video-scanner-native && npm run build",
-    "build:native:debug": "cd src/video-scanner-native && npm run build:debug",
-    "build:thumbnails": "cd src/thumbnail-generator-native && npm run build",
-    "build:thumbnails:debug": "cd src/thumbnail-generator-native && npm run build:debug",
-    "build:all": "npm run build:native && npm run build:thumbnails && npm run build:ts",
+    "build:all": "npm run build:ts",
     "type-check": "npm run build:ts --noEmit",
     "lint": "eslint \"{src,app,types}/**/*.{ts,js}\"",
     "lint:fix": "eslint \"{src,app,types}/**/*.{ts,js}\" --fix",
@@ -36,8 +31,6 @@
     "files": [
       "dist/main/**",
       "app/**/*.{js,html,css,png}",
-      "src/video-scanner-native/**/*.node",
-      "src/thumbnail-generator-native/**/*.node",
       "node_modules/**/*"
     ],
     "mac": {
@@ -65,7 +58,6 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
-    "@napi-rs/cli": "^3.3.1",
     "@playwright/test": "^1.55.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.8.1",
