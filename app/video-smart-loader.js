@@ -12,8 +12,8 @@ class VideoSmartLoader {
     this.maxActiveVideos = options.maxActiveVideos || 30;
 
     // Buffer zones for loading vs unloading (configurable)
-    this.loadBufferZone = options.loadBufferZone || 500;       // Start loading when 500px from viewport
-    this.unloadBufferZone = options.unloadBufferZone || 2500; // Only unload when 2500px from viewport (prevents blank thumbnails on quick scroll back)
+    this.loadBufferZone = options.loadBufferZone || 1500;      // Start loading when 1500px from viewport
+    this.unloadBufferZone = options.unloadBufferZone || 5000;  // Only unload when 5000px from viewport (prevents blank thumbnails on quick scroll back)
 
     // Performance tracking
     this.lastCleanup = Date.now();
@@ -297,6 +297,15 @@ class VideoSmartLoader {
           `Now: ${this.loadedVideos.size} loaded, ${this.activeVideos.size} active (max: ${this.maxActiveVideos})`
         );
       }
+    }
+  }
+
+  /**
+   * Observe a single video item (for VirtualGrid incremental observation)
+   */
+  observeItem(element) {
+    if (this.observer && element) {
+      this.observer.observe(element);
     }
   }
 

@@ -32,7 +32,6 @@ class FilterManager {
     this.app.currentSort = sortMode;
     this.updateSortButtonStates();
     this.reorderGridInPlace();
-    this.app.updateStatusMessage();
     this.app.saveSettings();
   }
 
@@ -70,9 +69,7 @@ class FilterManager {
     });
 
     const frag = document.createDocumentFragment();
-    items.forEach((el, newIndex) => {
-      // CRITICAL: Update data-index to match new position after sorting
-      el.dataset.index = newIndex.toString();
+    items.forEach((el) => {
       frag.appendChild(el);
     });
     container.appendChild(frag);
@@ -109,7 +106,6 @@ class FilterManager {
       this.app.renderGrid();
     }
 
-    this.app.updateStatusMessage();
     setTimeout(() => btn.classList.remove('shuffling'), 500);
   }
 
@@ -356,8 +352,6 @@ class FilterManager {
 
       item.classList.toggle('is-hidden-by-filter', !shouldShow);
     });
-
-    this.refreshVisibleVideos();
   }
 
   refreshVisibleVideos() {

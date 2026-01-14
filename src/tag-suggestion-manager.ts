@@ -12,9 +12,17 @@ export interface TagSuggestion {
   source: 'folder' | 'recent' | 'global';
 }
 
+interface TagInfo {
+  name: string;
+  usage: number;
+}
+
 export class TagSuggestionManager {
   private recentlyUsedTags: string[] = [];
   private readonly MAX_RECENT = 10;
+  private readonly CACHE_TTL = 30000; // 30 seconds
+  private tagCache: { tags: TagInfo[]; timestamp: number } | null = null;
+  private folderTagCache = new Map<string, { tags: string[]; timestamp: number }>();
 
   constructor(
     private readonly folderMetadata: FolderMetadataManager,
@@ -52,12 +60,39 @@ export class TagSuggestionManager {
    */
   clearSession(): void {
     this.recentlyUsedTags = [];
+    this.invalidateTagCache();
+  }
+
+  /**
+   * Invalidate tag caches (called when tags are added/removed)
+   */
+  invalidateTagCache(): void {
+    this.tagCache = null;
+    this.folderTagCache.clear();
+  }
+
+  /**
+   * Get cached global tags
+   */
+  private getCachedGlobalTags(): TagInfo[] {
+    if (this.tagCache && Date.now() - this.tagCache.timestamp < this.CACHE_TTL) {
+      return this.tagCache.tags;
+    }
+    const tags = this.folderMetadata.getAllTags();
+    this.tagCache = { tags, timestamp: Date.now() };
+    return tags;
   }
 
   /**
    * Get tags frequently used in a specific subfolder
    */
   async getFolderTags(subfolder: string, limit = 6): Promise<string[]> {
+    // Check cache first
+    const cached = this.folderTagCache.get(subfolder);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.tags.slice(0, limit);
+    }
+
     // Query videos in this subfolder
     const videos = this.database.getVideos({ folder: subfolder });
 
@@ -71,11 +106,15 @@ export class TagSuggestionManager {
       }
     }
 
-    // Sort by count descending and return top N
-    return Object.entries(tagCounts)
+    // Sort by count descending
+    const sortedTags = Object.entries(tagCounts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
       .map(([name]) => name);
+
+    // Cache the result
+    this.folderTagCache.set(subfolder, { tags: sortedTags, timestamp: Date.now() });
+
+    return sortedTags.slice(0, limit);
   }
 
   /**
@@ -111,7 +150,7 @@ export class TagSuggestionManager {
     }
 
     // Step 3: Global popular tags (fill remaining slots)
-    const globalTags = this.folderMetadata.getAllTags();
+    const globalTags = this.getCachedGlobalTags();
     for (const tagInfo of globalTags) {
       if (suggestions.length >= limit) break;
       if (!seen.has(tagInfo.name)) {

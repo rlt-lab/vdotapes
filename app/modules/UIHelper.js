@@ -4,6 +4,8 @@
 class UIHelper {
   constructor(app) {
     this.app = app;
+    // Debounce status updates to prevent O(n) reduce spam
+    this.updateStatusMessage = debounce(this._updateStatusMessageImpl.bind(this), 50);
   }
 
   formatFileSize(bytes) {
@@ -145,7 +147,7 @@ class UIHelper {
     }
   }
 
-  updateStatusMessage() {
+  _updateStatusMessageImpl() {
     const totalVideos = this.app.displayedVideos.length;
     const totalSize = this.app.displayedVideos.reduce((sum, v) => sum + (v.size || 0), 0);
 

@@ -36,7 +36,11 @@ class VdoTapesApp {
     this.tagFilterMode = 'OR';  // 'AND' or 'OR' - how to combine multiple tags
 
     // Smart loading (single video loading system)
-    this.smartLoader = null
+    this.smartLoader = null;
+
+    // Virtual grid for large collections (>500 videos)
+    this.useVirtualGrid = false;
+    this.virtualGrid = null;
 
     // Initialize modules
     this.thumbnailPreloader = new ThumbnailPreloader({ app: this, maxConcurrent: 3, useFirstFrame: true });

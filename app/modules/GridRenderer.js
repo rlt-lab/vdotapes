@@ -12,16 +12,11 @@ class GridRenderer {
       return;
     }
 
-    // PERF: Auto-enable virtual grid for 500+ videos (3-10s responsiveness improvement)
-    const shouldUseVirtual = this.app.displayedVideos.length > 500;
-    if (shouldUseVirtual && !this.app.useVirtualGrid) {
-      this.app.useVirtualGrid = true;
-      console.log(`[Renderer] Auto-enabled virtual grid for ${this.app.displayedVideos.length} videos`);
-    }
+    // NOTE: VirtualGrid disabled - uses absolute positioning which breaks CSS Grid layout
+    // TODO: Implement CSS Grid-compatible virtualization that maintains layout
+    // const shouldUseVirtual = this.app.displayedVideos.length > 500;
 
-    if (this.app.useVirtualGrid && this.app.virtualGrid && this.app.useWasmEngine && this.app.gridEngine) {
-      this.renderVirtualGrid();
-    } else if (this.app.useWasmEngine && this.app.gridEngine) {
+    if (this.app.useWasmEngine && this.app.gridEngine) {
       this.renderWasmGrid();
     } else {
       this.renderSmartGrid();
@@ -31,24 +26,58 @@ class GridRenderer {
   }
 
   renderVirtualGrid() {
-    console.log('[Renderer] Using VIRTUAL GRID with WASM reconciliation');
-    
+    console.log('[Renderer] Using VIRTUAL GRID for large collection');
+
     document.getElementById('content').innerHTML = '<div class="video-grid video-grid-virtual"></div>';
     const container = document.querySelector('.video-grid');
-    
+
     container.style.position = 'relative';
-    
-    if (this.app.virtualGrid.isInitialized) {
-      this.app.virtualGrid.refresh();
-    } else {
-      this.app.virtualGrid.init(container);
+
+    // Destroy old VirtualGrid if container changed (DOM was replaced)
+    if (this.app.virtualGrid && this.app.virtualGrid.isInitialized) {
+      this.app.virtualGrid.destroy();
     }
-    
+
+    // Create new VirtualGrid for this container
+    this.app.virtualGrid = new VirtualGrid({
+      itemHeight: 200,
+      itemGap: 8,
+      bufferRows: 2,
+      columns: this.app.gridCols,
+      renderItem: (video, index) => this.createVideoElement(video, index),
+    });
+
+    // Initialize with container, then set data
+    this.app.virtualGrid.init(container);
+    this.app.virtualGrid.setData(this.app.displayedVideos);
+
     const stats = this.app.virtualGrid.getStats();
     console.log(
-      `[Renderer] Virtual grid active: ` +
-      `${stats.renderedElements} rendered, ${stats.loadedVideos}/${stats.maxActiveVideos} loaded`
+      `[Renderer] Virtual grid active: ${stats.renderedElements}/${stats.totalItems} rendered`
     );
+  }
+
+  /**
+   * Create a video element for VirtualGrid
+   */
+  createVideoElement(video, index) {
+    const div = document.createElement('div');
+    div.innerHTML = this.createVideoItemHTML(video, index);
+    const element = div.firstElementChild;
+
+    // Add click listener
+    element.addEventListener('click', (e) => {
+      if (!e.target.closest('.video-favorite')) {
+        this.app.videoExpander.expandVideo(index);
+      }
+    });
+
+    // Observe with smart loader for lazy loading
+    if (this.app.smartLoader) {
+      this.app.smartLoader.observeItem(element);
+    }
+
+    return element;
   }
 
   renderWasmGrid() {
