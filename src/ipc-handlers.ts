@@ -92,7 +92,7 @@ interface BackupImportResult {
 class IPCHandlers {
   private videoScanner: VideoScanner;
   private database: VideoDatabase;
-  private thumbnailGenerator: any | null = null;
+  private thumbnailGenerator: ThumbnailGenerator | null = null;
   private folderMetadata: FolderMetadataManager;
   private tagSuggestionManager!: TagSuggestionManager;
   private isInitialized = false;
@@ -214,7 +214,7 @@ class IPCHandlers {
       const result = await this.videoScanner.scanVideos(folderPath);
 
       if (result.success && result.videos.length > 0) {
-        const saved = this.database.addVideos(result.videos as any[]);
+        const saved = this.database.addVideos([...result.videos]);
         if (!saved) {
           console.warn('Failed to save some videos to database');
         }
@@ -773,7 +773,7 @@ class IPCHandlers {
         return { success: false, error: 'Thumbnail generator not initialized' };
       }
 
-      const result = await this.thumbnailGenerator.generateThumbnail(videoPath, timestamp);
+      const result = await this.thumbnailGenerator.generateThumbnail(videoPath, timestamp ?? undefined);
 
       if (result.success && result.thumbnailPath) {
         // Get actual file stats for correct video ID generation
@@ -833,7 +833,15 @@ class IPCHandlers {
     }
   }
 
-  async handleGetVideoMetadata(_event: IpcMainInvokeEvent, filePath: string): Promise<any> {
+  async handleGetVideoMetadata(_event: IpcMainInvokeEvent, filePath: string): Promise<{
+    duration: number | null;
+    width: number | null;
+    height: number | null;
+    codec: string | null;
+    bitrate: number | null;
+    size: number;
+    lastModified: number;
+  } | null> {
     try {
       if (!(await this.isValidVideoFile(filePath))) {
         return null;
@@ -855,7 +863,7 @@ class IPCHandlers {
     }
   }
 
-  async handleGetSettings(_event: IpcMainInvokeEvent, key?: string): Promise<any> {
+  async handleGetSettings(_event: IpcMainInvokeEvent, key?: string): Promise<AppSettings | unknown | null> {
     try {
       if (!this.isInitialized) {
         await this.initialize();

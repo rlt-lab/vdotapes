@@ -70,6 +70,24 @@ export interface VideoMetadata {
   readonly format: string;
 }
 
+// Thumbnail operation result types
+export interface ThumbnailGenerationResult {
+  readonly success: boolean;
+  readonly thumbnailPath?: string;
+  readonly error?: string;
+}
+
+export interface ThumbnailData {
+  readonly thumbnail_path: string;
+  readonly timestamp: number | null;
+}
+
+// Rated video result type
+export interface RatedVideoEntry {
+  readonly video_id: VideoId;
+  readonly rating: Rating;
+}
+
 // Type-safe IPC method signatures based on existing preload.js
 export interface ElectronAPI {
   // Application info
@@ -98,7 +116,7 @@ export interface ElectronAPI {
   readonly saveRating: (videoId: VideoId, rating: Rating) => Promise<boolean>;
   readonly getRating: (videoId: VideoId) => Promise<Rating | null>;
   readonly removeRating: (videoId: VideoId) => Promise<boolean>;
-  readonly getRatedVideos: () => Promise<readonly VideoRecord[]>;
+  readonly getRatedVideos: () => Promise<readonly RatedVideoEntry[]>;
 
   // Tags operations
   readonly addTag: (videoId: VideoId, tagName: string) => Promise<boolean>;
@@ -110,8 +128,8 @@ export interface ElectronAPI {
   readonly getTagSuggestions: (videoId: VideoId, subfolder: string, limit?: number) => Promise<readonly TagSuggestion[]>;
 
   // Thumbnail operations
-  readonly generateThumbnail: (videoPath: FilePath, timestamp: number) => Promise<Buffer | null>;
-  readonly getThumbnail: (videoId: VideoId) => Promise<Buffer | null>;
+  readonly generateThumbnail: (videoPath: FilePath, timestamp: number | null) => Promise<ThumbnailGenerationResult>;
+  readonly getThumbnail: (videoId: VideoId) => Promise<ThumbnailData | null>;
 
   // Settings operations
   readonly getSettings: () => Promise<AppSettings>;
@@ -122,7 +140,7 @@ export interface ElectronAPI {
   readonly saveUserPreferences: (preferences: UserPreferences) => Promise<boolean>;
 
   // Backup operations
-  readonly exportBackup: (options: { includeThumbnails?: boolean }) => Promise<BackupData>;
+  readonly exportBackup: () => Promise<BackupData>;
   readonly importBackup: (backup: BackupData) => Promise<BackupImportResult>;
   readonly exportBackupToFile: () => Promise<BackupExportResult>;
   readonly importBackupFromFile: () => Promise<BackupImportResult>;
@@ -165,7 +183,7 @@ export interface IPCChannelMap {
   'save-rating': (videoId: VideoId, rating: Rating) => boolean;
   'get-rating': (videoId: VideoId) => Rating | null;
   'remove-rating': (videoId: VideoId) => boolean;
-  'get-rated-videos': () => readonly VideoRecord[];
+  'get-rated-videos': () => readonly RatedVideoEntry[];
 
   // Tags
   'tags-add': (videoId: VideoId, tagName: string) => boolean;
@@ -175,8 +193,8 @@ export interface IPCChannelMap {
   'tags-search': (query: string) => readonly VideoRecord[];
 
   // Thumbnails
-  'generate-thumbnail': (videoPath: FilePath, timestamp: number) => Buffer | null;
-  'get-thumbnail': (videoId: VideoId) => Buffer | null;
+  'generate-thumbnail': (videoPath: FilePath, timestamp: number | null) => ThumbnailGenerationResult;
+  'get-thumbnail': (videoId: VideoId) => ThumbnailData | null;
 
   // Settings
   'get-settings': () => AppSettings;
@@ -187,7 +205,7 @@ export interface IPCChannelMap {
   'save-user-preferences': (preferences: UserPreferences) => boolean;
 
   // Backups
-  'backup-export': (options: { includeThumbnails?: boolean }) => BackupData;
+  'backup-export': () => BackupData;
   'backup-import': (backup: BackupData) => BackupImportResult;
   'backup-export-file': () => BackupExportResult;
   'backup-import-file': () => BackupImportResult;

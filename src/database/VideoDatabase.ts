@@ -29,10 +29,64 @@ import { VideoOperations } from './operations/VideoOperations';
 
 // Performance and caching (existing modules)
 // TODO: Convert these CommonJS modules to ES modules
+
+/**
+ * Type definitions for QueryCache (from query-cache.js)
+ */
+interface QueryCacheInterface {
+  get(query: string, params?: unknown): unknown | null;
+  set(query: string, params: unknown, data: unknown): void;
+  invalidate(pattern: string): number;
+  clear(): void;
+  getStats(): {
+    size: number;
+    maxSize: number;
+    hitRate: number;
+    hitCount: number;
+    missCount: number;
+    totalRequests: number;
+  };
+}
+
+/**
+ * Type definitions for QueryPerformanceMonitor (from performance-monitor.js)
+ */
+interface QueryPerformanceMonitorInterface {
+  wrapQuery<T extends (...args: unknown[]) => unknown>(queryName: string, queryFn: T): T;
+  wrapAsyncQuery<T extends (...args: unknown[]) => Promise<unknown>>(queryName: string, queryFn: T): T;
+  recordQuery(queryName: string, duration: number, error?: Error | null, args?: unknown[]): void;
+  getSlowQueries(limit?: number): Array<{ queryName: string; duration: number; timestamp: number }>;
+  getQueryStats(): Array<{ queryName: string; count: number; avgTime: number; maxTime: number }>;
+  getSummaryStats(): {
+    totalQueries: number;
+    totalTime: number;
+    avgQueryTime: number;
+    queriesPerSecond: number;
+  };
+  generateReport(): {
+    timestamp: string;
+    summary: { avgQueryTime: number; totalQueries: number; queriesPerSecond: number };
+    slowQueries: Array<{ queryName: string; duration: number }>;
+    recommendations: Array<{ type: string; suggestion: string }>;
+  };
+  reset(): void;
+}
+
+/**
+ * Type definitions for CacheWarmer (from query-cache.js)
+ */
+interface CacheWarmerInterface {
+  warmCommonQueries(): Promise<void>;
+  schedulePeriodicWarming(intervalMs?: number): void;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const QueryPerformanceMonitor = require('../performance-monitor');
+const QueryPerformanceMonitor = require('../performance-monitor') as new () => QueryPerformanceMonitorInterface;
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { QueryCache, CacheWarmer } = require('../query-cache');
+const { QueryCache, CacheWarmer } = require('../query-cache') as {
+  QueryCache: new (maxSize?: number, ttl?: number) => QueryCacheInterface;
+  CacheWarmer: new (database: VideoDatabase) => CacheWarmerInterface;
+};
 
 // Legacy interfaces for compatibility
 interface BackupItem {
@@ -75,9 +129,9 @@ export class VideoDatabase implements VideoDatabaseOperations {
   private backupOps: BackupOperations;
 
   // Performance and caching
-  private queryCache: any;
-  private performanceMonitor: any;
-  private cacheWarmer: any;
+  private queryCache: QueryCacheInterface;
+  private performanceMonitor: QueryPerformanceMonitorInterface;
+  private cacheWarmer: CacheWarmerInterface | null = null;
 
   constructor() {
     // Initialize core
@@ -353,8 +407,17 @@ export class VideoDatabase implements VideoDatabaseOperations {
     const startTime = performance.now();
     let synced = 0;
 
-    const videoIds = Object.keys(allMetadata);
-    console.log(`[Database] Syncing ${videoIds.length} videos in single transaction...`);
+    const allVideoIds = Object.keys(allMetadata);
+
+    // Get only video IDs that exist in the database to avoid FK constraint failures
+    const db = this.core.getConnection();
+    const existingVideos = db.prepare(
+      `SELECT id FROM videos WHERE id IN (${allVideoIds.map(() => '?').join(',')})`
+    ).all(...allVideoIds) as Array<{ id: string }>;
+    const existingIds = new Set(existingVideos.map(v => v.id));
+
+    const videoIds = allVideoIds.filter(id => existingIds.has(id));
+    console.log(`[Database] Syncing ${videoIds.length} of ${allVideoIds.length} videos in single transaction...`);
 
     // Wrap everything in a single transaction for maximum performance
     const result = this.transactionManager.execute((ctx) => {
