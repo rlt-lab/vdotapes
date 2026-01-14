@@ -676,6 +676,49 @@ body {
   fill: currentColor;
 }
 
+/* All Folders button */
+.all-folders-btn {
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 0.5rem;
+  color: #ccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+}
+
+.all-folders-btn:hover {
+  background: #444;
+  border-color: #667eea;
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.all-folders-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Folder group layout */
+.folder-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Sort group layout */
+.sort-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .multi-view-btn {
   background: #333;
   border: 1px solid #555;

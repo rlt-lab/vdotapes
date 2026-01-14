@@ -18,6 +18,12 @@ class EventController {
       this.app.filterManager.filterByFolder(e.target.value);
     });
 
+    // All Folders button
+    document.getElementById('allFoldersBtn').addEventListener('click', () => {
+      document.getElementById('folderSelect').value = '';
+      this.app.filterManager.filterByFolder('');
+    });
+
     // Sort buttons
     document.getElementById('sortFolderBtn').addEventListener('click', () => {
       this.app.filterManager.setSortMode('folder');
@@ -106,21 +112,7 @@ class EventController {
   }
 
   setupDropdowns() {
-    // Sort dropdown
-    const sortBtn = document.getElementById('sortBtn');
-    const sortMenu = document.getElementById('sortMenu');
-    const sortDropdown = document.getElementById('sortDropdown');
-
-    if (sortBtn && sortMenu) {
-      sortBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        sortMenu.classList.toggle('show');
-        const settingsMenu = document.getElementById('settingsMenu');
-        if (settingsMenu) settingsMenu.classList.remove('show');
-      });
-    }
-
-    // Settings dropdown (formerly backup)
+    // Settings dropdown
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsMenu = document.getElementById('settingsMenu');
     const settingsDropdown = document.getElementById('settingsDropdown');
@@ -129,7 +121,6 @@ class EventController {
       settingsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         settingsMenu.classList.toggle('show');
-        if (sortMenu) sortMenu.classList.remove('show');
       });
 
       // Backup export
@@ -179,9 +170,6 @@ class EventController {
 
     // Close dropdowns when clicking outside
     document.addEventListener('click', (e) => {
-      if (sortDropdown && !sortDropdown.contains(e.target)) {
-        if (sortMenu) sortMenu.classList.remove('show');
-      }
       if (settingsDropdown && !settingsDropdown.contains(e.target)) {
         if (settingsMenu) settingsMenu.classList.remove('show');
       }

@@ -196,22 +196,23 @@ class GridRenderer {
     const isFavorited = video.isFavorite === true;
     const hasMetadata = video.duration || video.width || video.height;
 
+    const folderTitle = video.folder || 'Root folder';
     return `
-      <div class="video-item ${!video.isValid && hasMetadata ? 'invalid-metadata' : ''}" data-index="${index}" data-video-id="${video.id}" data-folder="${video.folder || ''}" data-last-modified="${video.lastModified || 0}" title="${video.name}">
+      <div class="video-item ${!video.isValid && hasMetadata ? 'invalid-metadata' : ''}" data-index="${index}" data-video-id="${video.id}" data-folder="${video.folder || ''}" data-last-modified="${video.lastModified || 0}" title="${folderTitle}">
         <!-- Thumbnail placeholder (shows while loading or on error) -->
         <div class="video-thumbnail" data-video-id="${video.id}">
           <div class="thumbnail-loading">
             <span>Loading...</span>
           </div>
         </div>
-        
-        <video 
+
+        <video
           data-src="${video.path}"
           data-duration="${video.duration || ''}"
-          muted 
+          muted
           loop
           preload="none"
-          title="${video.name}"
+          title="${folderTitle}"
         ></video>
         <button class="video-favorite ${isFavorited ? 'favorited' : ''}" data-video-id="${video.id}">
           <svg viewBox="0 0 24 24" class="heart-icon">
