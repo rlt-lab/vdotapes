@@ -77,8 +77,9 @@ export class TransactionManager {
     } catch (error) {
       try {
         db.exec('ROLLBACK');
-      } catch {
-        // Ignore rollback errors
+      } catch (rollbackError) {
+        console.error('CRITICAL: Rollback failed:', rollbackError);
+        console.error('Original error:', error);
       }
 
       if (error instanceof Error && error.message === 'ROLLBACK') {

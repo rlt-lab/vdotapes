@@ -150,7 +150,33 @@ export function migrateToV2(db: Database.Database): MigrationResult {
     db.exec(`ALTER TABLE favorites RENAME TO _backup_favorites_v1`);
     db.exec(`ALTER TABLE hidden_files RENAME TO _backup_hidden_files_v1`);
     db.exec(`ALTER TABLE ratings RENAME TO _backup_ratings_v1`);
-    
+
+    // Step 4b: Recreate empty tables for backward compatibility
+    // Some code still references these tables even though data is now in videos
+    console.log('[Migration] Recreating empty tables for compatibility...');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        video_id TEXT PRIMARY KEY,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+      )
+    `);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS hidden_files (
+        video_id TEXT PRIMARY KEY,
+        hidden_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+      )
+    `);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ratings (
+        video_id TEXT PRIMARY KEY,
+        rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+      )
+    `);
+
     // Step 5: Update schema version
     console.log('[Migration] Updating schema version...');
     db.exec(`
@@ -177,9 +203,10 @@ export function migrateToV2(db: Database.Database): MigrationResult {
     try {
       db.exec('ROLLBACK');
     } catch (rollbackError) {
-      console.error('[Migration] Rollback failed:', rollbackError);
+      console.error('[Migration] CRITICAL: Rollback failed:', rollbackError);
+      console.error('[Migration] Original error:', error);
     }
-    
+
     console.error('[Migration] Migration failed:', error);
     return {
       success: false,
@@ -241,9 +268,10 @@ export function rollbackV2Migration(db: Database.Database): MigrationResult {
     try {
       db.exec('ROLLBACK');
     } catch (rollbackError) {
-      console.error('[Migration] Rollback failed:', rollbackError);
+      console.error('[Migration] CRITICAL: Rollback failed:', rollbackError);
+      console.error('[Migration] Original error:', error);
     }
-    
+
     console.error('[Migration] Rollback failed:', error);
     return {
       success: false,
@@ -275,9 +303,10 @@ export function removeBackupTables(db: Database.Database): boolean {
     try {
       db.exec('ROLLBACK');
     } catch (rollbackError) {
-      console.error('[Migration] Rollback failed:', rollbackError);
+      console.error('[Migration] CRITICAL: Rollback failed:', rollbackError);
+      console.error('[Migration] Original error:', error);
     }
-    
+
     console.error('[Migration] Failed to remove backup tables:', error);
     return false;
   }
