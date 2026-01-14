@@ -292,6 +292,8 @@ class IPCHandlers {
       });
 
       deleteTransaction(videosToDelete.map(v => v.id));
+      // Invalidate cache since video tags may have been deleted via cascade
+      this.invalidateAllVideoTagsCache();
       console.log('[VideoScanner] Successfully cleared old videos');
     } catch (error) {
       console.error('Error clearing videos from old folder:', error);
@@ -702,7 +704,10 @@ class IPCHandlers {
   ): Promise<ImportResult> {
     try {
       if (!this.isInitialized) await this.initialize();
-      return this.database.importBackup(payload);
+      const result = this.database.importBackup(payload);
+      // Invalidate cache since tags may have been imported
+      this.invalidateAllVideoTagsCache();
+      return result;
     } catch (error) {
       console.error('Error importing backup:', error);
       return { imported: 0, skipped: 0, errors: 1 };
@@ -741,6 +746,8 @@ class IPCHandlers {
       const filePath = filePaths[0];
       const content = await fs.readFile(filePath, 'utf8');
       const result = this.database.importBackup(content);
+      // Invalidate cache since tags may have been imported
+      this.invalidateAllVideoTagsCache();
       return { success: true, path: filePath, ...result };
     } catch (error) {
       console.error('Error importing backup from file:', error);
