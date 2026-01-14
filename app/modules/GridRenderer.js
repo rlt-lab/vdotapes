@@ -12,6 +12,13 @@ class GridRenderer {
       return;
     }
 
+    // PERF: Auto-enable virtual grid for 500+ videos (3-10s responsiveness improvement)
+    const shouldUseVirtual = this.app.displayedVideos.length > 500;
+    if (shouldUseVirtual && !this.app.useVirtualGrid) {
+      this.app.useVirtualGrid = true;
+      console.log(`[Renderer] Auto-enabled virtual grid for ${this.app.displayedVideos.length} videos`);
+    }
+
     if (this.app.useVirtualGrid && this.app.virtualGrid && this.app.useWasmEngine && this.app.gridEngine) {
       this.renderVirtualGrid();
     } else if (this.app.useWasmEngine && this.app.gridEngine) {

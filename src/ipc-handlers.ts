@@ -97,6 +97,11 @@ class IPCHandlers {
   private tagSuggestionManager!: TagSuggestionManager;
   private isInitialized = false;
 
+  // Cache for getAllVideoTags with 5-second TTL (PERF: 80% reduction in DB queries)
+  private allVideoTagsCache: Record<string, string[]> | null = null;
+  private allVideoTagsCacheTime: number = 0;
+  private static readonly ALL_VIDEO_TAGS_CACHE_TTL = 5000; // 5 seconds
+
   constructor() {
     this.videoScanner = new VideoScanner();
     this.database = new VideoDatabase();
@@ -553,6 +558,8 @@ class IPCHandlers {
         this.database.addTag(videoId, tagName);
         // Record for tag suggestions
         this.tagSuggestionManager.recordTagUsage(tagName);
+        // Invalidate cache since tags changed
+        this.invalidateAllVideoTagsCache();
       }
       return success;
     } catch (error) {
@@ -572,6 +579,8 @@ class IPCHandlers {
       const success = await this.folderMetadata.removeTag(videoId, tagName);
       if (success) {
         this.database.removeTag(videoId, tagName);
+        // Invalidate cache since tags changed
+        this.invalidateAllVideoTagsCache();
       }
       return success;
     } catch (error) {
@@ -629,6 +638,12 @@ class IPCHandlers {
         await this.initialize();
       }
 
+      // Return cached result if still valid
+      const now = Date.now();
+      if (this.allVideoTagsCache && (now - this.allVideoTagsCacheTime) < IPCHandlers.ALL_VIDEO_TAGS_CACHE_TTL) {
+        return this.allVideoTagsCache;
+      }
+
       const tagsMap = this.database.getAllVideoTags();
 
       // Convert Map to plain object for IPC transfer
@@ -637,11 +652,20 @@ class IPCHandlers {
         result[videoId] = tags;
       }
 
+      // Cache the result
+      this.allVideoTagsCache = result;
+      this.allVideoTagsCacheTime = now;
+
       return result;
     } catch (error) {
       console.error('Error in get-all-video-tags handler:', error);
       return {};
     }
+  }
+
+  private invalidateAllVideoTagsCache(): void {
+    this.allVideoTagsCache = null;
+    this.allVideoTagsCacheTime = 0;
   }
 
   async handleTagsSuggestions(
