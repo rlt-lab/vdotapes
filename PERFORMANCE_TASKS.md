@@ -240,21 +240,62 @@ getCacheStats(): Promise<CacheStats>
 ### 4.4 Code Review
 | Task | Description |
 |------|-------------|
-| ☐ Run code review skill | `/superpowers:requesting-code-review` |
+| ☑ Run code review skill | `/superpowers:requesting-code-review` |
+
+**Code Review Completed:** Found 3 HIGH, 7 MEDIUM, 6 LOW severity issues.
+
+---
+
+## Phase 5: Code Review Fixes
+
+### 5.1 Fix HIGH Severity Issues (Required)
+**File:** `src/thumbnail-gen-ts.ts`
+
+| Task | Description | Lines |
+|------|-------------|-------|
+| ☐ Add subprocess timeout | Wrap FFmpeg/FFprobe spawn() calls with 30-60s timeout to prevent hangs on malformed videos | 353-481 |
+| ☐ Fix race condition in cache | Add mutex/lock for `cacheEntries` Map and `currentCacheSize` mutations during concurrent `generateThumbnail()` calls | 153-186 |
+| ☐ Fix cache key mismatch | Update `getThumbnailPath()` to pass timestamp parameter to `getCacheKey()` - currently omits timestamp causing cache misses | 227 |
+
+### 5.2 Fix MEDIUM Severity Issues (Recommended)
+**Files:** `src/thumbnail-gen-ts.ts`, `src/video-scanner-ts.ts`
+
+| Task | Description | File | Lines |
+|------|-------------|------|-------|
+| ☐ Add width/height params to getThumbnailPath | Currently hardcodes 320x180, can't find custom-sized thumbnails | thumbnail-gen-ts.ts | 226-242 |
+| ☐ Check FFprobe exit code | Currently parses output even on failure | thumbnail-gen-ts.ts | 365-370 |
+| ☐ Add child process cleanup | Register cleanup handlers for app shutdown to prevent orphaned processes | thumbnail-gen-ts.ts | all spawn() |
+| ☐ Add output buffer limits | Prevent unbounded memory growth from FFmpeg stderr | thumbnail-gen-ts.ts | 360-445 |
+| ☐ Add error logging in catch blocks | Empty catch blocks lose error context | video-scanner-ts.ts | 187-190 |
+| ☐ Deduplicate video ID generation | Same algorithm copied in 3 places - extract to single function | video-scanner-ts.ts | 103-117, 350-363 |
+
+### 5.3 Fix LOW Severity Issues (Optional)
+| Task | Description |
+|------|-------------|
+| ☐ Update CLAUDE.md with new file locations | Document video-scanner-ts.ts and thumbnail-gen-ts.ts |
+| ☐ Standardize logging prefixes | Use `[VideoScanner]` instead of `[VideoScannerTS]` |
+| ☐ Remove unused conversion functions | Delete `convertNativeVideoToRecord()` and `convertNativeScanResult()` from video-scanner.ts |
 
 ---
 
 ## Verification Checklist
 
-- [ ] `npm run type-check` passes
-- [ ] `npm run build:ts` succeeds
+### Build & Launch
+- [x] `npm run type-check` passes
+- [x] `npm run build:ts` succeeds
 - [ ] App launches with `npm run dev`
+
+### Functionality
 - [ ] Folder scan completes without UI freeze
 - [ ] Thumbnails generate correctly
 - [ ] Sort mode change is instant (<100ms)
 - [ ] Expanded view opens instantly (<100ms)
 - [ ] Grid scrolls smoothly with 10k videos
-- [ ] No Rust compilation errors (because Rust is gone)
+
+### Architecture
+- [x] No Rust compilation errors (because Rust is gone)
+- [ ] Phase 5.1 HIGH severity issues fixed
+- [ ] Phase 5.2 MEDIUM severity issues fixed (recommended)
 
 ---
 

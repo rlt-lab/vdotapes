@@ -322,6 +322,68 @@ Remove:
 ### 4.4 Code Review
 **Tool:** Skill (`/superpowers:requesting-code-review`)
 
+**Status:** COMPLETED - Found issues requiring fixes.
+
+---
+
+## Phase 5: Code Review Fixes
+
+### 5.1 Fix HIGH Severity Issues (Required)
+**Tool:** Edit
+**Files:** `src/thumbnail-gen-ts.ts`
+
+**Issue 1: No subprocess timeout**
+```typescript
+// Add timeout wrapper to all spawn() calls
+function spawnWithTimeout(cmd: string, args: string[], timeoutMs = 30000): Promise<{stdout: string, stderr: string}> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args);
+    const timeout = setTimeout(() => {
+      proc.kill('SIGKILL');
+      reject(new Error(`Process ${cmd} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    // ... existing logic
+    proc.on('close', () => {
+      clearTimeout(timeout);
+      resolve({stdout, stderr});
+    });
+  });
+}
+```
+
+**Issue 2: Race condition in cache**
+```typescript
+// Add simple mutex for cache operations
+private cacheOperationQueue = Promise.resolve();
+
+async generateThumbnail(...) {
+  return this.cacheOperationQueue = this.cacheOperationQueue.then(async () => {
+    // existing logic - now serialized
+  });
+}
+```
+
+**Issue 3: Cache key mismatch**
+```typescript
+// Fix getThumbnailPath to include timestamp
+async getThumbnailPath(videoPath: string, timestamp?: number): Promise<string | null> {
+  const cacheKey = this.getCacheKey(videoPath, DEFAULT_WIDTH, DEFAULT_HEIGHT, timestamp);
+  // ...
+}
+```
+
+### 5.2 Fix MEDIUM Severity Issues
+**Tool:** Edit
+**Files:** `src/thumbnail-gen-ts.ts`, `src/video-scanner-ts.ts`
+
+- Add width/height parameters to `getThumbnailPath()`
+- Check FFprobe exit code before parsing output
+- Add process cleanup handlers for app shutdown
+- Add output buffer size limits (max 10KB)
+- Add error logging in empty catch blocks
+- Deduplicate video ID generation code
+
 ---
 
 ## Execution Strategy
@@ -382,12 +444,19 @@ Remove:
 
 ## Verification Checklist
 
-- [ ] `npm run type-check` passes
-- [ ] `npm run build:ts` succeeds
+### Build & Launch
+- [x] `npm run type-check` passes
+- [x] `npm run build:ts` succeeds
 - [ ] App launches with `npm run dev`
+
+### Functionality
 - [ ] Folder scan completes without UI freeze
 - [ ] Thumbnails generate correctly
 - [ ] Sort mode change is instant (<100ms)
 - [ ] Expanded view opens instantly (<100ms)
 - [ ] Grid scrolls smoothly with 10k videos
-- [ ] No Rust compilation errors (because Rust is gone)
+
+### Architecture
+- [x] No Rust compilation errors (because Rust is gone)
+- [ ] Phase 5.1 HIGH severity issues fixed (subprocess timeout, race condition, cache key)
+- [ ] Phase 5.2 MEDIUM severity issues fixed
