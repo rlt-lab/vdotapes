@@ -8,6 +8,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { VideoId } from '../types/core';
 
+/**
+ * Check if a file exists asynchronously
+ */
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // v1.0.0 format (legacy)
 interface FolderMetadataV1 {
   version: '1.0.0';
@@ -72,9 +84,9 @@ export class FolderMetadataManager {
 
     try {
       // Check if metadata file exists
-      if (fs.existsSync(metadataPath)) {
+      if (await fileExists(metadataPath)) {
         // Load existing metadata
-        const data = fs.readFileSync(metadataPath, 'utf-8');
+        const data = await fs.promises.readFile(metadataPath, 'utf-8');
         const rawMetadata = JSON.parse(data);
         
         // Migrate from v1 to v2 if needed
@@ -100,12 +112,10 @@ export class FolderMetadataManager {
           videos: {}
         };
 
-        // Create .vdotapes directory if it doesn't exist
+        // Create .vdotapes directory (mkdir with recursive:true is idempotent)
         const metadataDir = this.getMetadataDir(folderPath);
-        if (!fs.existsSync(metadataDir)) {
-          fs.mkdirSync(metadataDir, { recursive: true });
-          console.log(`[FolderMetadata] Created metadata directory: ${metadataDir}`);
-        }
+        await fs.promises.mkdir(metadataDir, { recursive: true });
+        console.log(`[FolderMetadata] Ensured metadata directory exists: ${metadataDir}`);
 
         // Save initial metadata
         await this.save();
@@ -214,16 +224,14 @@ export class FolderMetadataManager {
       const metadataPath = this.getMetadataPath(this.currentFolderPath);
       const metadataDir = this.getMetadataDir(this.currentFolderPath);
 
-      // Ensure directory exists
-      if (!fs.existsSync(metadataDir)) {
-        fs.mkdirSync(metadataDir, { recursive: true });
-      }
+      // Ensure directory exists (mkdir with recursive:true is idempotent)
+      await fs.promises.mkdir(metadataDir, { recursive: true });
 
       // Update timestamp
       this.metadata.lastUpdated = new Date().toISOString();
 
       // Write to file
-      fs.writeFileSync(metadataPath, JSON.stringify(this.metadata, null, 2), 'utf-8');
+      await fs.promises.writeFile(metadataPath, JSON.stringify(this.metadata, null, 2), 'utf-8');
       console.log(`[FolderMetadata] Saved metadata to ${metadataPath}`);
     } catch (error) {
       console.error('[FolderMetadata] Error saving metadata:', error);
@@ -481,9 +489,9 @@ export class FolderMetadataManager {
   /**
    * Check if a folder has metadata
    */
-  static hasMetadata(folderPath: string): boolean {
+  static async hasMetadata(folderPath: string): Promise<boolean> {
     const metadataPath = path.join(folderPath, '.vdotapes', 'metadata.json');
-    return fs.existsSync(metadataPath);
+    return fileExists(metadataPath);
   }
 
   /**
