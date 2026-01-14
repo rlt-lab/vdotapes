@@ -184,9 +184,9 @@ async function* scanVideosAsync(folderPath: string): AsyncGenerator<FileEntry, v
         mtime: stats.mtimeMs,
         birthtime: stats.birthtimeMs,
       };
-    } catch {
+    } catch (error) {
       // Non-blocking error - skip this file and continue
-      // Error will be tracked by caller
+      console.warn(`[VideoScanner] Failed to process ${fullPath}:`, error instanceof Error ? error.message : String(error));
     }
   }
 }
@@ -348,19 +348,7 @@ export class VideoScannerTS {
    * @returns Branded VideoId type
    */
   generateVideoId(filePath: string, metadata: FileMetadata): VideoId {
-    // Extract filename from path (handles both Unix and Windows paths)
-    const filename = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
-    const str = `${filename}_${metadata.size}_${metadata.lastModified}`;
-
-    // DJB2 hash algorithm (same as existing VideoScanner)
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-
-    return createVideoId(Math.abs(hash).toString(36));
+    return generateVideoId(filePath, metadata.size, metadata.lastModified);
   }
 
   /**

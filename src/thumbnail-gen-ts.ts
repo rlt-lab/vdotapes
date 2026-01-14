@@ -12,7 +12,7 @@
  * - Full video metadata extraction via ffprobe
  */
 
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { access, mkdir, readdir, stat, unlink, rm } from 'fs/promises';
 import { join } from 'path';
 import { createHash } from 'crypto';
@@ -145,6 +145,7 @@ export class ThumbnailGeneratorTS {
   private cacheEntries: Map<string, CacheEntry> = new Map();
   private initialized: boolean = false;
   private operationQueue: Promise<void> = Promise.resolve();
+  private activeProcesses: Set<ChildProcess> = new Set();
 
   /**
    * Create a new thumbnail generator
@@ -419,13 +420,86 @@ export class ThumbnailGeneratorTS {
    * Clean up resources
    *
    * Called when shutting down the application.
+   * Terminates any running FFmpeg/FFprobe processes.
    */
   cleanup(): void {
-    console.log('[ThumbnailGeneratorTS] Cleanup');
-    // No persistent resources to clean up in TS implementation
+    console.log('[ThumbnailGeneratorTS] Cleaning up...');
+    for (const proc of this.activeProcesses) {
+      try {
+        proc.kill('SIGTERM');
+      } catch {
+        // Process may have already exited
+      }
+    }
+    this.activeProcesses.clear();
   }
 
   // ============ Private Methods ============
+
+  /**
+   * Spawn a process with timeout protection and process tracking
+   */
+  private spawnWithTimeoutTracked(
+    command: string,
+    args: string[],
+    options: { timeout?: number; stdio?: 'pipe' | 'ignore' } = {}
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const timeoutMs = options.timeout ?? DEFAULT_TIMEOUT_MS;
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn(command, args, { stdio: options.stdio === 'ignore' ? 'ignore' : 'pipe' });
+
+      // Track the process for cleanup
+      this.activeProcesses.add(proc);
+
+      let stdout = '';
+      let stderr = '';
+      let killed = false;
+
+      const timeout = setTimeout(() => {
+        killed = true;
+        proc.kill('SIGKILL');
+        this.activeProcesses.delete(proc);
+        reject(new Error(`Process ${command} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      if (proc.stdout) {
+        proc.stdout.on('data', (data) => {
+          stdout += data.toString();
+          // Limit buffer size to 1MB
+          if (stdout.length > 1024 * 1024) {
+            stdout = stdout.slice(-1024 * 1024);
+          }
+        });
+      }
+
+      if (proc.stderr) {
+        proc.stderr.on('data', (data) => {
+          stderr += data.toString();
+          // Limit buffer size to 100KB
+          if (stderr.length > 100 * 1024) {
+            stderr = stderr.slice(-100 * 1024);
+          }
+        });
+      }
+
+      proc.on('close', (code) => {
+        clearTimeout(timeout);
+        this.activeProcesses.delete(proc);
+        if (!killed) {
+          resolve({ stdout, stderr, exitCode: code ?? 1 });
+        }
+      });
+
+      proc.on('error', (err) => {
+        clearTimeout(timeout);
+        this.activeProcesses.delete(proc);
+        if (!killed) {
+          reject(err);
+        }
+      });
+    });
+  }
 
   /**
    * Generate cache key from video path, dimensions, and timestamp
@@ -442,14 +516,19 @@ export class ThumbnailGeneratorTS {
    */
   private async getSmartTimestamp(videoPath: string): Promise<number> {
     try {
-      const result = await spawnWithTimeout('ffprobe', [
+      const result = await this.spawnWithTimeoutTracked('ffprobe', [
         '-v', 'error',
         '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1',
         videoPath,
-      ]);
+      ], { timeout: 10000 });
 
-      const duration = parseFloat(result.stdout) || 10;
+      if (result.exitCode !== 0) {
+        console.warn('[ThumbnailGeneratorTS] FFprobe failed, using default timestamp');
+        return 5; // fallback
+      }
+
+      const duration = parseFloat(result.stdout.trim()) || 10;
       // 10% into video, minimum 1 second, maximum 30 seconds
       return Math.min(Math.max(duration * 0.1, 1), 30);
     } catch {
@@ -478,7 +557,7 @@ export class ThumbnailGeneratorTS {
       outputPath,
     ];
 
-    const result = await spawnWithTimeout('ffmpeg', args);
+    const result = await this.spawnWithTimeoutTracked('ffmpeg', args);
 
     if (result.exitCode !== 0) {
       throw new Error(`FFmpeg exited with code ${result.exitCode}: ${result.stderr.slice(-500)}`);
@@ -497,7 +576,7 @@ export class ThumbnailGeneratorTS {
       videoPath,
     ];
 
-    const result = await spawnWithTimeout('ffprobe', args);
+    const result = await this.spawnWithTimeoutTracked('ffprobe', args);
 
     if (result.exitCode !== 0) {
       throw new Error(`FFprobe exited with code ${result.exitCode}: ${result.stderr}`);
