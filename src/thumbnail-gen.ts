@@ -1,19 +1,15 @@
 /**
- * ThumbnailGenerator - TypeScript wrapper for native Rust thumbnail generator
+ * ThumbnailGenerator - TypeScript wrapper for thumbnail generation
  *
- * This module provides a seamless integration layer between the high-performance
- * Rust native thumbnail generator (using FFmpeg) and the TypeScript application.
+ * This module provides thumbnail generation using FFmpeg via subprocess.
  *
  * Features:
- * - Automatic native module detection with graceful fallback
  * - Type-safe API with proper error handling
  * - Thumbnail caching with LRU eviction
  * - Smart frame selection (skips black frames, intros)
- * - Hardware-accelerated video decoding when available
- *
- * The wrapper automatically detects if the native module is available and falls
- * back to a stub implementation if not (returns null for all operations).
  */
+
+import { ThumbnailGeneratorTS, isFfmpegAvailable as checkFfmpegAvailable } from './thumbnail-gen-ts';
 
 /**
  * Configuration for thumbnail generation
@@ -151,27 +147,11 @@ class ThumbnailGeneratorStub {
 }
 
 /**
- * Determine which implementation to use
+ * Use TypeScript implementation
  */
-let GeneratorClass: NativeThumbnailGeneratorConstructor | typeof ThumbnailGeneratorStub;
-let isNativeGenerator = false;
-
-try {
-  // Attempt to load the native Rust module
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const nativeModule = require('./thumbnail-generator-native');
-  GeneratorClass = nativeModule.ThumbnailGeneratorNative;
-  isNativeGenerator = true;
-  console.log('[ThumbnailGenerator] Using native Rust implementation with FFmpeg');
-} catch (error) {
-  // Fall back to stub implementation
-  console.warn('[ThumbnailGenerator] Native module unavailable, using stub');
-  if (error instanceof Error) {
-    console.warn(`[ThumbnailGenerator] Reason: ${error.message}`);
-  }
-  GeneratorClass = ThumbnailGeneratorStub;
-  isNativeGenerator = false;
-}
+const GeneratorClass = ThumbnailGeneratorTS;
+const isNativeGenerator = false;
+console.log('[ThumbnailGenerator] Using TypeScript implementation');
 
 /**
  * ThumbnailGenerator - Unified API for thumbnail generation
@@ -306,26 +286,11 @@ export class ThumbnailGenerator {
 
 /**
  * Check if FFmpeg is available on the system
- * Only works with native implementation.
  *
- * @returns true if FFmpeg is available and can be used
+ * @returns Promise resolving to true if FFmpeg is available and can be used
  */
-export function isFfmpegAvailable(): boolean {
-  if (!isNativeGenerator) {
-    return false;
-  }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const nativeModule = require('./thumbnail-generator-native');
-    if (nativeModule.isFfmpegAvailable) {
-      return nativeModule.isFfmpegAvailable();
-    }
-  } catch (error) {
-    return false;
-  }
-
-  return false;
+export async function isFfmpegAvailable(): Promise<boolean> {
+  return checkFfmpegAvailable();
 }
 
 // Export default for CommonJS compatibility

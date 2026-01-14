@@ -1,9 +1,9 @@
 /**
- * VideoScanner - TypeScript wrapper for native Rust video scanner
+ * VideoScanner - TypeScript wrapper for video scanner
  *
- * This module provides a seamless integration layer between the high-performance
- * Rust native video scanner and the TypeScript application. It handles:
- * - Type conversions between Rust and TypeScript branded types
+ * This module provides a wrapper layer for the TypeScript video scanner.
+ * It handles:
+ * - Type conversions and TypeScript branded types
  * - API compatibility with the existing codebase
  */
 
@@ -14,6 +14,7 @@ import type {
   ScanResult as CoreScanResult,
 } from '../types/core';
 import { createVideoId, createFilePath, createTimestamp } from '../types/guards';
+import { VideoScannerTS } from './video-scanner-ts';
 
 /**
  * File metadata returned by file system operations
@@ -100,12 +101,9 @@ interface NativeScannerConstructor {
 }
 
 /**
- * Load native Rust module
+ * Log implementation in use
  */
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const nativeModule = require('./video-scanner-native');
-const NativeScannerClass: NativeScannerConstructor = nativeModule.VideoScannerNative;
-console.log('[VideoScanner] Using native Rust implementation');
+console.log('[VideoScanner] Using TypeScript implementation');
 
 /**
  * Convert native Rust VideoMetadata to TypeScript VideoRecord
@@ -153,10 +151,10 @@ function convertNativeScanResult(nativeResult: NativeScanResult): CoreScanResult
  * ```
  */
 class VideoScanner {
-  private readonly scanner: NativeScanner;
+  private readonly scanner: VideoScannerTS;
 
   constructor() {
-    this.scanner = new NativeScannerClass();
+    this.scanner = new VideoScannerTS();
   }
 
   /**
@@ -169,9 +167,8 @@ class VideoScanner {
    * @throws {ScanError} If scanning fails
    */
   async scanVideos(folderPath: string): Promise<CoreScanResult> {
-    // Native scanner is synchronous, wrap in Promise for consistent API
-    const nativeResult = this.scanner.scanVideos(folderPath);
-    return convertNativeScanResult(nativeResult);
+    // TypeScript scanner is already async and returns CoreScanResult directly
+    return this.scanner.scanVideos(folderPath);
   }
 
   /**
@@ -189,8 +186,8 @@ class VideoScanner {
    * @returns Readonly array of video records with branded types
    */
   getVideos(): readonly VideoRecord[] {
-    const nativeVideos = this.scanner.getVideos();
-    return nativeVideos.map(convertNativeVideoToRecord);
+    // TypeScript scanner already returns VideoRecord[] with branded types
+    return this.scanner.getVideos();
   }
 
   /**
@@ -268,10 +265,10 @@ class VideoScanner {
   /**
    * Check if the native scanner is being used
    *
-   * @returns Always true (always using Rust native implementation)
+   * @returns Always false (using TypeScript implementation)
    */
   isUsingNativeScanner(): boolean {
-    return true;
+    return false;
   }
 }
 

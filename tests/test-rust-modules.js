@@ -19,14 +19,19 @@ try {
   console.log(`   ❌ VideoScanner failed: ${error.message}`);
 }
 
-// Test 2: Thumbnail Generator Native  
-console.log('\n2. Testing thumbnail-generator-native...');
+// Test 2: Thumbnail Generator
+console.log('\n2. Testing thumbnail-generator...');
 try {
   const { ThumbnailGenerator, isFfmpegAvailable } = require('./dist/main/src/thumbnail-gen');
   const generator = new ThumbnailGenerator();
   console.log('   ✅ ThumbnailGenerator loaded successfully');
   console.log(`   ✅ Using native: ${generator.isUsingNativeGenerator()}`);
-  console.log(`   ✅ FFmpeg available: ${isFfmpegAvailable()}`);
+  // isFfmpegAvailable is now async
+  isFfmpegAvailable().then(available => {
+    console.log(`   ✅ FFmpeg available: ${available}`);
+  }).catch(() => {
+    console.log('   ⚠️  FFmpeg check failed');
+  });
 } catch (error) {
   console.log(`   ❌ ThumbnailGenerator failed: ${error.message}`);
 }
