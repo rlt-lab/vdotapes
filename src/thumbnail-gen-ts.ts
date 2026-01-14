@@ -60,6 +60,7 @@ interface CacheEntry {
   path: string;
   size: number;
   accessTime: number;
+  timestamp: number;
 }
 
 /**
@@ -118,14 +119,25 @@ export class ThumbnailGeneratorTS {
    *
    * @param videoPath - Absolute path to the video file
    * @param timestamp - Optional timestamp in seconds (null for smart selection)
+   * @param width - Thumbnail width (default: 320)
+   * @param height - Thumbnail height (default: 180)
    * @returns Result containing thumbnail path or error
    */
-  async generateThumbnail(videoPath: string, timestamp?: number): Promise<ThumbnailResult> {
+  async generateThumbnail(
+    videoPath: string,
+    timestamp?: number,
+    width: number = DEFAULT_WIDTH,
+    height: number = DEFAULT_HEIGHT
+  ): Promise<ThumbnailResult> {
     if (!this.initialized) {
       await this.initialize();
     }
 
-    const cacheKey = this.getCacheKey(videoPath, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    // Determine actual timestamp to use (compute smart timestamp if not provided)
+    const ts = timestamp ?? await this.getSmartTimestamp(videoPath);
+
+    // Include timestamp in cache key so different timestamps can be cached
+    const cacheKey = this.getCacheKey(videoPath, width, height, ts);
     const cachePath = join(this.cacheDir, `${cacheKey}.jpg`);
 
     // Check cache first
@@ -133,32 +145,34 @@ export class ThumbnailGeneratorTS {
       await access(cachePath);
       const stats = await stat(cachePath);
 
+      // Get stored timestamp from cache entry, or use computed timestamp
+      const existingEntry = this.cacheEntries.get(cacheKey);
+      const storedTimestamp = existingEntry?.timestamp ?? ts;
+
       // Update access time for LRU
       this.cacheEntries.set(cacheKey, {
         path: cachePath,
         size: stats.size,
         accessTime: Date.now(),
+        timestamp: storedTimestamp,
       });
 
       return {
         success: true,
         thumbnailPath: cachePath,
-        width: DEFAULT_WIDTH,
-        height: DEFAULT_HEIGHT,
+        width: width,
+        height: height,
         format: DEFAULT_FORMAT,
         fileSize: stats.size,
-        timestamp: timestamp ?? 0,
+        timestamp: storedTimestamp,
       };
     } catch {
       // Not in cache, need to generate
     }
 
-    // Get smart timestamp if not provided
-    const ts = timestamp ?? await this.getSmartTimestamp(videoPath);
-
     try {
       // Generate thumbnail with FFmpeg
-      await this.runFFmpeg(videoPath, cachePath, ts, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+      await this.runFFmpeg(videoPath, cachePath, ts, width, height);
 
       // Get file stats
       const stats = await stat(cachePath);
@@ -168,6 +182,7 @@ export class ThumbnailGeneratorTS {
         path: cachePath,
         size: stats.size,
         accessTime: Date.now(),
+        timestamp: ts,
       });
       this.currentCacheSize += stats.size;
 
@@ -179,8 +194,8 @@ export class ThumbnailGeneratorTS {
       return {
         success: true,
         thumbnailPath: cachePath,
-        width: DEFAULT_WIDTH,
-        height: DEFAULT_HEIGHT,
+        width: width,
+        height: height,
         format: DEFAULT_FORMAT,
         fileSize: stats.size,
         timestamp: ts,
@@ -321,13 +336,13 @@ export class ThumbnailGeneratorTS {
   // ============ Private Methods ============
 
   /**
-   * Generate cache key from video path and dimensions
+   * Generate cache key from video path, dimensions, and timestamp
    */
-  private getCacheKey(videoPath: string, width: number, height: number): string {
-    return createHash('sha256')
-      .update(`${videoPath}:${width}:${height}`)
-      .digest('hex')
-      .slice(0, 32);
+  private getCacheKey(videoPath: string, width: number, height: number, timestamp?: number): string {
+    const input = timestamp !== undefined
+      ? `${videoPath}:${width}:${height}:${timestamp}`
+      : `${videoPath}:${width}:${height}`;
+    return createHash('sha256').update(input).digest('hex').slice(0, 32);
   }
 
   /**
@@ -488,6 +503,7 @@ export class ThumbnailGeneratorTS {
             path: filePath,
             size: stats.size,
             accessTime: stats.mtimeMs, // Use mtime as initial access time
+            timestamp: 0, // Unknown timestamp for existing cache files
           });
 
           this.currentCacheSize += stats.size;
