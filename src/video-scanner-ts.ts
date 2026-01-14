@@ -5,9 +5,8 @@
  * Uses Node.js fs/promises API for async file system operations.
  */
 
-import { createHash } from 'crypto';
 import { readdir, stat } from 'fs/promises';
-import { basename, dirname, join } from 'path';
+import { dirname, join } from 'path';
 
 import type {
   VideoId,
@@ -16,6 +15,39 @@ import type {
   ScanResult as CoreScanResult,
 } from '../types/core';
 import { createVideoId, createFilePath, createTimestamp } from '../types/guards';
+
+/**
+ * File metadata returned by file system operations
+ */
+interface FileMetadata {
+  readonly size: number;
+  readonly lastModified: Timestamp;
+  readonly created: Timestamp;
+}
+
+/**
+ * Extended video metadata including codec information
+ */
+interface VideoMetadata {
+  readonly duration: number | null;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly codec: string | null;
+  readonly bitrate: number | null;
+  readonly size: number;
+  readonly lastModified: Timestamp;
+}
+
+/**
+ * Progress information for ongoing scan operations
+ */
+interface ScanProgress {
+  readonly isScanning: boolean;
+  readonly progress: number;
+  readonly processedFiles: number;
+  readonly totalFiles: number;
+  readonly totalVideos: number;
+}
 
 /**
  * Supported video file extensions (lowercase)
@@ -60,7 +92,8 @@ export function isValidVideoFile(filename: string): boolean {
 /**
  * Generate a deterministic video ID based on file path, size, and modification time
  *
- * Uses SHA-256 hash of "path:size:mtime" and takes first 16 characters.
+ * Uses DJB2 hash algorithm with "filename_size_mtime" format, output as base36.
+ * This matches the existing VideoScanner implementation to ensure ID consistency.
  *
  * @param path - Absolute path to the video file
  * @param size - File size in bytes
@@ -68,9 +101,19 @@ export function isValidVideoFile(filename: string): boolean {
  * @returns Branded VideoId type
  */
 export function generateVideoId(path: string, size: number, mtime: number): VideoId {
-  const input = `${path}:${size}:${mtime}`;
-  const hash = createHash('sha256').update(input).digest('hex').slice(0, 16);
-  return createVideoId(hash);
+  // Extract filename from path (handles both Unix and Windows paths)
+  const filename = path.split('/').pop() || path.split('\\').pop() || path;
+  const str = `${filename}_${size}_${mtime}`;
+
+  // DJB2 hash algorithm (same as existing VideoScanner)
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+
+  return createVideoId(Math.abs(hash).toString(36));
 }
 
 /**
@@ -297,13 +340,70 @@ export class VideoScannerTS {
   /**
    * Generate a unique video ID based on file path and metadata
    *
-   * @param path - Absolute path to the video file
-   * @param size - File size in bytes
-   * @param mtime - Modification time in milliseconds
+   * Creates a deterministic hash-based ID from filename, size, and modification time.
+   * This ensures the same video file always gets the same ID.
+   *
+   * @param filePath - Absolute path to the video file
+   * @param metadata - File metadata (size and timestamps)
    * @returns Branded VideoId type
    */
-  generateVideoId(path: string, size: number, mtime: number): VideoId {
-    return generateVideoId(path, size, mtime);
+  generateVideoId(filePath: string, metadata: FileMetadata): VideoId {
+    // Extract filename from path (handles both Unix and Windows paths)
+    const filename = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
+    const str = `${filename}_${metadata.size}_${metadata.lastModified}`;
+
+    // DJB2 hash algorithm (same as existing VideoScanner)
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+
+    return createVideoId(Math.abs(hash).toString(36));
+  }
+
+  /**
+   * Get current scan progress
+   *
+   * @returns Current scanning state and progress information
+   */
+  getProgress(): ScanProgress {
+    return {
+      isScanning: this.isScanning,
+      progress: this.isScanning ? 0 : 100,
+      processedFiles: this.cachedVideos.length,
+      totalFiles: this.cachedVideos.length,
+      totalVideos: this.cachedVideos.length,
+    };
+  }
+
+  /**
+   * Get file metadata
+   *
+   * Note: The TypeScript scanner integrates this into the main scanning process.
+   * This method is provided for API compatibility but returns null.
+   *
+   * @param _filePath - Absolute path to the file
+   * @returns Always returns null (use scanVideos to get metadata)
+   */
+  async getFileMetadata(_filePath: string): Promise<FileMetadata | null> {
+    console.warn('[VideoScannerTS] getFileMetadata not available - use scanVideos instead');
+    return null;
+  }
+
+  /**
+   * Get video metadata
+   *
+   * Note: The TypeScript scanner integrates this into the main scanning process.
+   * This method is provided for API compatibility but returns null.
+   *
+   * @param _filePath - Absolute path to the video file
+   * @returns Always returns null (use scanVideos to get metadata)
+   */
+  async getVideoMetadata(_filePath: string): Promise<VideoMetadata | null> {
+    console.warn('[VideoScannerTS] getVideoMetadata not available - use scanVideos instead');
+    return null;
   }
 
   /**
