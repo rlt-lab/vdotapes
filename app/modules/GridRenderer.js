@@ -263,6 +263,8 @@ class GridRenderer {
 
     const items = document.querySelectorAll('.video-item');
     items.forEach((item) => {
+      if (item.dataset.hasListener) return;  // Guard against duplicate listeners
+      item.dataset.hasListener = 'true';
       item.addEventListener('click', (e) => {
         if (!e.target.closest('.video-favorite')) {
           // Use data-index attribute, not loop index, to handle re-sorting correctly

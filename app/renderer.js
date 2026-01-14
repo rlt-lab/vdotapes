@@ -83,6 +83,7 @@ class VdoTapesApp {
     await this.userDataManager.loadSettings();
 
     window.addEventListener('beforeunload', async () => {
+      this.videoManager.cleanup();
       await this.userDataManager.flushPendingSaves();
       await this.userDataManager.saveSettingsImmediate();
     });
