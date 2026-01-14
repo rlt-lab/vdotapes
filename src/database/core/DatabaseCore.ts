@@ -216,6 +216,7 @@ export class DatabaseCore {
       'CREATE INDEX IF NOT EXISTS idx_videos_name_folder ON videos (name, folder)',
       'CREATE INDEX IF NOT EXISTS idx_videos_folder_size ON videos (folder, size DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_folder_date_size ON videos (folder, last_modified DESC, size DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_videos_folder_favorite ON videos (folder, favorite)',
       'CREATE INDEX IF NOT EXISTS idx_videos_name_date ON videos (name, last_modified DESC)',
       'CREATE INDEX IF NOT EXISTS idx_videos_size_date ON videos (size DESC, last_modified DESC)',
       
